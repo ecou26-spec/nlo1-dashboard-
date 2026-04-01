@@ -37,7 +37,7 @@ def check_password():
 check_password()
 
 # ==============================
-# LOAD DATA (ANTI ERROR TOTAL)
+# LOAD DATA (STABLE)
 # ==============================
 @st.cache_data(ttl=30)
 def load_data():
@@ -58,8 +58,14 @@ def load_data():
         # CLEAN HEADER
         # ==============================
         df.columns = df.columns.str.strip()
-        df.columns = df.columns.str.replace(" ", "_")
-        df.columns = df.columns.str.replace("/", "_")
+
+        df.rename(columns={
+            "L/Time Total": "L_Time_Total",
+            "L/T PDI-PPOin": "LT_PDI_PPOin",
+            "L/T PPOIn-PPOcomp": "LT_PPOIn_PPOcomp",
+            "L/T PPO_SPUin": "LT_PPO_SPUin",
+            "L/T SPUin _SPUcomp": "LT_SPUin_SPUcomp"
+        }, inplace=True)
 
         # buang baris kosong
         df = df.dropna(how="all")
@@ -80,19 +86,14 @@ if df.empty:
     st.stop()
 
 # ==============================
-# DEBUG (optional, bisa dihapus nanti)
-# ==============================
-st.write("Kolom terbaca:", df.columns)
-
-# ==============================
 # CLEAN DATA TYPE
 # ==============================
-# convert datetime
+# datetime
 date_cols = [
-    "PDIcomp._Date",
-    "PPOin_Date",
-    "PPOcomp._Date",
-    "SPUin_Date",
+    "PDIcomp. Date",
+    "PPOin Date",
+    "PPOcomp. Date",
+    "SPUin Date",
     "SPUcomp_ActualDateTime"
 ]
 
@@ -100,7 +101,7 @@ for col in date_cols:
     if col in df.columns:
         df[col] = pd.to_datetime(df[col], errors="coerce")
 
-# convert numeric
+# numeric
 if "L_Time_Total" in df.columns:
     df["L_Time_Total"] = pd.to_numeric(df["L_Time_Total"], errors="coerce")
 
@@ -110,7 +111,7 @@ if "L_Time_Total" in df.columns:
 st.title("📊 NLO1 Production Dashboard")
 
 # ==============================
-# KPI (AMAN)
+# KPI
 # ==============================
 col1, col2, col3 = st.columns(3)
 
