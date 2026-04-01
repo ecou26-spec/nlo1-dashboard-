@@ -470,75 +470,141 @@ with left_col:
             st.dataframe(pd.DataFrame(daily_rows), use_container_width=True, hide_index=True)
 
 with right_col:
-    st.markdown('<div class="section-title">💡 Key Findings</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">💡 Key Findings & Action Points</div>', unsafe_allow_html=True)
+    st.caption(f"Auto-generated · {sel_loc} · {date_label}")
 
     findings = []
+    total_p = stats["processes"].get("Total")
+    recv_p  = stats["processes"].get("Receiving")
+    ppo_p   = stats["processes"].get("PPO")
+    spuin_p = stats["processes"].get("SPU In")
 
-    # Best process
-    best_p, best_name = None, None
-    for pn, p in stats["processes"].items():
-        if p and p["achieved"] is not None:
-            if best_p is None or p["achieved"] > best_p["achieved"]:
-                best_p, best_name = p, pn
-    if best_p and best_p["achieved"] >= 95:
-        findings.append({
-            "ico": "🟢", "title": f"{best_name} — Proses Terbaik",
-            "desc": f"Achievement {best_p['achieved']}% — sangat baik. Avg {fmt_mins(best_p['actual_avg'])} (param {fmt_mins(best_p['param_avg'])}). Jadikan benchmark.",
-            "color": "#00e5a0"
-        })
-
-    # Worst process
-    worst_p, worst_name = None, None
-    for pn, p in stats["processes"].items():
-        if p and p["achieved"] is not None:
-            if worst_p is None or p["achieved"] < worst_p["achieved"]:
-                worst_p, worst_name = p, pn
-    if worst_p and worst_p["achieved"] is not None and worst_p["achieved"] < 90:
-        findings.append({
-            "ico": "🔴", "title": f"{worst_name} — Perlu Perhatian",
-            "desc": f"Achievement {worst_p['achieved']}% di bawah target. Avg {fmt_mins(worst_p['actual_avg'])} vs param {fmt_mins(worst_p['param_avg'])}.",
-            "color": "#ff4060"
-        })
-
-    # Worst model
-    if stats["models"]:
-        ng_models = [m for m in stats["models"] if m["ng"] and m["ng"] > 0]
-        if ng_models:
-            top = max(ng_models, key=lambda x: x["ng"])
+    # 1) Overall achievement status
+    if total_p and total_p["achieved"] is not None:
+        ach_t = total_p["achieved"]
+        if ach_t >= 99:
             findings.append({
-                "ico": "🚗", "title": f"{top['name']} — Model Paling Bermasalah",
-                "desc": f"{top['ng']} Over L/T dari {top['n']} units (ach. {top['achieved']}%). Avg L/T {fmt_mins(top['total'])}, avg PPO {fmt_mins(top['ppo'])}.",
-                "color": "#ff4060"
+                "ico": "✅", "color": "#00e5a0",
+                "title": "Total L/T Achievement Excellent",
+                "desc": f"{ach_t}% of {total_p['total_classified']} units within parameter. All processes running smoothly.",
+                "badge": f"{ach_t}%", "action": None
+            })
+        elif ach_t >= 95:
+            findings.append({
+                "ico": "📊", "color": "#00e5a0",
+                "title": "Total L/T Achievement Good",
+                "desc": f"{ach_t}% achieved ({total_p['fast']+total_p['normal']}/{total_p['total_classified']} units). {total_p['ng']} Over L/T units need attention.",
+                "badge": f"{ach_t}%",
+                "action": f"Monitor {total_p['ng']} Over L/T units — identify common models/process causing delay."
+            })
+        elif ach_t >= 90:
+            findings.append({
+                "ico": "⚠️", "color": "#ffcc40",
+                "title": "Total L/T Below Target",
+                "desc": f"{ach_t}% achieved — {total_p['ng']} units Over L/T ({total_p['pct_ng']}%). Avg actual {fmt_mins(total_p['actual_avg'])} vs param avg {fmt_mins(total_p['param_avg'])}.",
+                "badge": f"{ach_t}%",
+                "action": f"Investigasi {total_p['ng']} unit Over L/T. Cek proses bottleneck dan koordinasi dengan team terkait."
+            })
+        else:
+            findings.append({
+                "ico": "🚨", "color": "#ff4060",
+                "title": "CRITICAL: Total L/T Below 90%",
+                "desc": f"Only {ach_t}% achieved — {total_p['ng']} units Over L/T ({total_p['pct_ng']}%). Avg {fmt_mins(total_p['actual_avg'])} significantly above param.",
+                "badge": f"{ach_t}%",
+                "action": f"URGENT: Immediate escalation required. Review all {total_p['ng']} Over L/T units and identify root cause by process stage."
             })
 
-    # High std dev
-    high_std, high_name = None, None
+    # 2) Worst process
+    procs_list = [(n, p) for n, p in [("Receiving", recv_p), ("PPO", ppo_p), ("SPU In", spuin_p)]
+                  if p and p["achieved"] is not None]
+    if procs_list:
+        procs_list.sort(key=lambda x: x[1]["achieved"])
+        wname, wp = procs_list[0]
+        if wp["achieved"] < 90:
+            findings.append({
+                "ico": "🔴", "color": "#ff4060",
+                "title": f"{wname} — Bottleneck Proses",
+                "desc": f"Achievement {wp['achieved']}% ({wp['ng']} Over L/T, {wp['pct_ng']}%). Actual avg {fmt_mins(wp['actual_avg'])} vs param {fmt_mins(wp['param_avg'])}. Std dev actual ±{to_mins(wp['actual_std'])} min vs param ±{to_mins(wp['param_std'])} min.",
+                "badge": f"{wp['achieved']}%",
+                "action": f"Review step {wname}: cek penyebab delay — ada unit tunggu part/kesiapan bay? Bandingkan unit Over vs On-time untuk identifikasi pola."
+            })
+        elif wp["achieved"] < 95:
+            findings.append({
+                "ico": "🟡", "color": "#ffcc40",
+                "title": f"{wname} — Monitor Lebih Dekat",
+                "desc": f"Achievement {wp['achieved']}% — masih ada {wp['ng']} Over L/T ({wp['pct_ng']}%). Avg actual {fmt_mins(wp['actual_avg'])}.",
+                "badge": f"{wp['achieved']}%",
+                "action": f"Keep monitoring {wname}. Jika trend memburuk, review allocation bay dan jadwal tim."
+            })
+
+    # 3) Best process
+    if len(procs_list) > 1:
+        procs_list.sort(key=lambda x: x[1]["achieved"], reverse=True)
+        bname, bp = procs_list[0]
+        if bp["achieved"] >= 98:
+            findings.append({
+                "ico": "🟢", "color": "#00e5a0",
+                "title": f"{bname} — Proses Terbaik",
+                "desc": f"Achievement {bp['achieved']}% — sangat baik. Avg actual {fmt_mins(bp['actual_avg'])} (param {fmt_mins(bp['param_avg'])}). Jadikan benchmark.",
+                "badge": f"{bp['achieved']}%", "action": None
+            })
+
+    # 4) Problem models
+    prob_models = sorted([m for m in stats["models"] if m["ng"] and m["ng"] > 0 and m["achieved"] is not None],
+                         key=lambda x: x["achieved"])
+    if prob_models:
+        top = prob_models[0]
+        findings.append({
+            "ico": "🚗", "color": ach_color(top["achieved"]),
+            "title": f"{top['name']} — Model Paling Bermasalah",
+            "desc": f"{top['ng']} Over L/T dari {top['n']} units (ach. {top['achieved']}%). Avg Total L/T {fmt_mins(top['total'])}, avg PPO {fmt_mins(top['ppo'])}.",
+            "badge": f"{top['achieved']}%",
+            "action": f"Prioritaskan investigasi {top['name']}: apakah ada pola di hari/shift tertentu? Cek avg PPO {fmt_mins(top['ppo'])} vs param."
+        })
+        if len(prob_models) > 1:
+            others = ", ".join([f"{m['name']} ({m['ng']})" for m in prob_models[1:3]])
+            total_other_ng = sum(m["ng"] for m in prob_models[1:])
+            findings.append({
+                "ico": "📋", "color": "#a066ff",
+                "title": "Model Lain Dengan Over L/T",
+                "desc": f"{others} juga terdampak. Total {total_other_ng} unit Over L/T di semua model lainnya.",
+                "badge": f"{len(prob_models)} models",
+                "action": "Cross-check apakah masalah berkaitan dengan batch delivery atau kondisi khusus hari ini."
+            })
+
+    # 5) High std dev
     for pn, p in stats["processes"].items():
         if p and p["actual_std"] and p["param_std"] and p["param_std"] > 0:
             ratio = p["actual_std"] / p["param_std"]
             if ratio > 1.5:
-                if high_std is None or ratio > high_std:
-                    high_std = ratio
-                    high_name = pn
-                    high_p = p
-    if high_name:
-        findings.append({
-            "ico": "📈", "title": f"{high_name} — Variabilitas Tinggi",
-            "desc": f"Std dev ±{to_mins(high_p['actual_std'])} min ({round((high_std-1)*100)}% di atas param ±{to_mins(high_p['param_std'])} min). Konsistensi proses perlu perbaikan.",
-            "color": "#22d3ee"
-        })
+                findings.append({
+                    "ico": "📈", "color": "#22d3ee",
+                    "title": f"{pn} — Variabilitas Tinggi",
+                    "desc": f"Std dev aktual ±{to_mins(p['actual_std'])} min ({round((ratio-1)*100)}% di atas param ±{to_mins(p['param_std'])} min). Indikasi konsistensi proses perlu perbaikan.",
+                    "badge": f"±{to_mins(p['actual_std'])} min",
+                    "action": f"Analisa distribusi waktu proses {pn}. Std dev tinggi berarti ada unit yang jauh di atas rata-rata — identifikasi outlier tersebut."
+                })
+                break
 
+    # 6) All perfect
     if not findings:
         findings.append({
-            "ico": "✅", "title": "Semua Proses Normal",
-            "desc": f"Achievement overall {ach:.1f}%. Tidak ada anomali signifikan pada periode ini.",
-            "color": "#00e5a0"
+            "ico": "🏆", "color": "#00e5a0",
+            "title": "Outstanding Performance!",
+            "desc": f"Semua unit dalam parameter untuk filter yang dipilih. Achievement sempurna — {stats['total_units']} units diproses tepat waktu.",
+            "badge": "100%", "action": None
         })
 
     for f in findings:
-        st.markdown(f"""<div class="finding-card" style="border-left: 3px solid {f['color']}">
-            <div style="font-size:.7rem; font-weight:700; color:{f['color']}; margin-bottom:4px">
-                {f['ico']} {f['title']}
+        action_html = f"""<div style="margin-top:6px; padding:6px 8px; background:rgba(255,255,255,.04);
+            border-radius:4px; font-size:.58rem; color:#ffcc40; line-height:1.5">
+            → <b>Action:</b> {f['action']}</div>""" if f.get("action") else ""
+        st.markdown(f"""<div class="finding-card" style="border-left:3px solid {f['color']}; margin-bottom:8px">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px">
+                <div style="font-size:.68rem; font-weight:700; color:{f['color']}">{f['ico']} {f['title']}</div>
+                <div style="font-size:.6rem; font-weight:700; color:{f['color']}; background:rgba(255,255,255,.06);
+                    padding:2px 8px; border-radius:10px">{f['badge']}</div>
             </div>
-            <div style="font-size:.62rem; color:#a0b4cc; line-height:1.5">{f['desc']}</div>
+            <div style="font-size:.61rem; color:#a0b4cc; line-height:1.5">{f['desc']}</div>
+            {action_html}
         </div>""", unsafe_allow_html=True)
