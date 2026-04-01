@@ -37,7 +37,7 @@ def check_password():
 check_password()
 
 # ==============================
-# LOAD DATA (FINAL FIX)
+# LOAD DATA (ANTI ERROR TOTAL)
 # ==============================
 @st.cache_data(ttl=30)
 def load_data():
@@ -49,13 +49,17 @@ def load_data():
 
         df = pd.read_csv(
             data,
-            sep=",",               # FIX: paksa koma
+            sep=",",
             encoding="utf-8",
-            on_bad_lines="skip"   # FIX: skip baris error
+            on_bad_lines="skip"
         )
 
-        # bersihin header
+        # ==============================
+        # CLEAN HEADER
+        # ==============================
         df.columns = df.columns.str.strip()
+        df.columns = df.columns.str.replace(" ", "_")
+        df.columns = df.columns.str.replace("/", "_")
 
         # buang baris kosong
         df = df.dropna(how="all")
@@ -76,14 +80,19 @@ if df.empty:
     st.stop()
 
 # ==============================
-# CLEAN DATA
+# DEBUG (optional, bisa dihapus nanti)
 # ==============================
-# Convert datetime
+st.write("Kolom terbaca:", df.columns)
+
+# ==============================
+# CLEAN DATA TYPE
+# ==============================
+# convert datetime
 date_cols = [
-    "PDIcomp. Date",
-    "PPOin Date",
-    "PPOcomp. Date",
-    "SPUin Date",
+    "PDIcomp._Date",
+    "PPOin_Date",
+    "PPOcomp._Date",
+    "SPUin_Date",
     "SPUcomp_ActualDateTime"
 ]
 
@@ -91,9 +100,9 @@ for col in date_cols:
     if col in df.columns:
         df[col] = pd.to_datetime(df[col], errors="coerce")
 
-# Convert numeric
-if "L/Time Total" in df.columns:
-    df["L/Time Total"] = pd.to_numeric(df["L/Time Total"], errors="coerce")
+# convert numeric
+if "L_Time_Total" in df.columns:
+    df["L_Time_Total"] = pd.to_numeric(df["L_Time_Total"], errors="coerce")
 
 # ==============================
 # TITLE
@@ -101,21 +110,18 @@ if "L/Time Total" in df.columns:
 st.title("📊 NLO1 Production Dashboard")
 
 # ==============================
-# KPI
+# KPI (AMAN)
 # ==============================
 col1, col2, col3 = st.columns(3)
 
 col1.metric("Total Unit", len(df))
 
-col2.metric(
-    "Avg Lead Time",
-    round(df["L/Time Total"].mean(), 2)
-)
-
-col3.metric(
-    "Max Lead Time",
-    round(df["L/Time Total"].max(), 2)
-)
+if "L_Time_Total" in df.columns:
+    col2.metric("Avg Lead Time", round(df["L_Time_Total"].mean(), 2))
+    col3.metric("Max Lead Time", round(df["L_Time_Total"].max(), 2))
+else:
+    col2.metric("Avg Lead Time", "-")
+    col3.metric("Max Lead Time", "-")
 
 st.divider()
 
@@ -140,9 +146,9 @@ st.dataframe(df, use_container_width=True)
 # ==============================
 # CHART
 # ==============================
-if "L/Time Total" in df.columns:
+if "L_Time_Total" in df.columns:
     st.subheader("📈 Lead Time Trend")
-    st.line_chart(df["L/Time Total"])
+    st.line_chart(df["L_Time_Total"])
 
 # ==============================
 # FOOTER
