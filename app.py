@@ -125,8 +125,8 @@ def classify(val, avg, std):
 # ── COMPUTE ───────────────────────────────────────────────────────────────────
 @st.cache_data(show_spinner=False)
 def compute(df_raw: bytes):
-    df = pd.read_csv(pd.io.common.BytesIO(df_raw), sep=None, engine="python")
-    df.columns = df.columns.str.strip()
+    df = pd.read_csv(pd.io.common.BytesIO(df_raw), sep=None, engine="python", encoding="utf-8-sig")
+    df.columns = df.columns.str.strip().str.replace('\ufeff', '', regex=False)
 
     # Parse date
     df["_date"] = pd.to_datetime(df["PDIcomp. Date"], errors="coerce", dayfirst=True).dt.strftime("%Y-%m-%d")
