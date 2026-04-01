@@ -554,18 +554,24 @@ with right_col:
             "badge":"100%","action":None})
 
     for f in findings:
-        action_html = f"""<div style="margin-top:6px;padding:6px 8px;background:rgba(255,255,255,.04);
-            border-radius:4px;font-size:.58rem;color:#ffcc40;line-height:1.5">
-            → <b>Action:</b> {f['action']}</div>""" if f.get("action") else ""
-        st.markdown(f"""<div class="finding-card" style="border-left:3px solid {f['color']}">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-            <div style="font-size:.68rem;font-weight:700;color:{f['color']}">{f['ico']} {f['title']}</div>
-            <div style="font-size:.6rem;font-weight:700;color:{f['color']};background:rgba(255,255,255,.06);
-              padding:2px 8px;border-radius:10px">{f['badge']}</div>
-          </div>
-          <div style="font-size:.61rem;color:#a0b4cc;line-height:1.5">{f['desc']}</div>
-          {action_html}
-        </div>""", unsafe_allow_html=True)
+        action_part = (
+            f"<div style='margin-top:6px;padding:6px 8px;background:rgba(255,255,255,.04);"
+            f"border-radius:4px;font-size:.58rem;color:#ffcc40;line-height:1.5'>"
+            f"→ <b>Action:</b> {f['action']}</div>"
+        ) if f.get("action") else ""
+
+        card_html = (
+            f"<div class='finding-card' style='border-left:3px solid {f['color']}'>"
+            f"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:4px'>"
+            f"<div style='font-size:.68rem;font-weight:700;color:{f["color"]}'>{f['ico']} {f['title']}</div>"
+            f"<div style='font-size:.6rem;font-weight:700;color:{f["color"]};background:rgba(255,255,255,.06);"
+            f"padding:2px 8px;border-radius:10px'>{f['badge']}</div>"
+            f"</div>"
+            f"<div style='font-size:.61rem;color:#a0b4cc;line-height:1.5'>{f['desc']}</div>"
+            + action_part +
+            f"</div>"
+        )
+        st.markdown(card_html, unsafe_allow_html=True)
 
 # ── FOOTER ────────────────────────────────────────────────────────────────────
 st.markdown("""
