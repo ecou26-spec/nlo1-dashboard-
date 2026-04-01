@@ -122,14 +122,15 @@ CSV_URL  = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv
 @st.cache_data(ttl=60, show_spinner="🔄 Mengambil data terbaru...")
 def load_from_sheets():
     try:
-        df = pd.read_csv(CSV_URL)
+        df = pd.read_csv(CSV_URL, encoding="utf-8-sig")
+        df.columns = df.columns.str.strip().str.replace("\ufeff", "", regex=False)
         return df, None
     except Exception as e:
         return None, str(e)
 
 # ── COMPUTE ───────────────────────────────────────────────────────────────────
 def prepare_df(df):
-    df.columns = df.columns.str.strip().str.replace('\ufeff', '', regex=False)
+    df.columns = df.columns.str.strip().str.replace('\ufeff', '', regex=False)  # extra safety
     df["_date"]  = pd.to_datetime(df["PDIcomp. Date"], errors="coerce", dayfirst=True).dt.strftime("%Y-%m-%d")
     df["_month"] = df["_date"].str[:7]
     df["_loc"]   = df["Model"].apply(get_loc)
