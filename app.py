@@ -187,11 +187,15 @@ def calc_stats(df, loc):
         pv  = pd.to_numeric(mdf.get(FIELDS["PPO"],   pd.Series(dtype=float)), errors="coerce").dropna()
         rv  = pd.to_numeric(mdf.get(FIELDS["Receiving"], pd.Series(dtype=float)), errors="coerce").dropna()
         tvv = tv.dropna()
+        spuin_v  = pd.to_numeric(mdf.get(FIELDS["SPU In"],   pd.Series(dtype=float)), errors="coerce").dropna()
+        spcomp_v = pd.to_numeric(mdf.get(FIELDS["SPU Comp"], pd.Series(dtype=float)), errors="coerce").dropna()
         models.append({
             "name": m, "n": len(mdf),
-            "total":    round(float(tvv.mean()), 3) if not tvv.empty else None,
-            "ppo":      round(float(pv.mean()),  3) if not pv.empty  else None,
-            "recv":     round(float(rv.mean()),  3) if not rv.empty  else None,
+            "total":    round(float(tvv.mean()),     3) if not tvv.empty    else None,
+            "ppo":      round(float(pv.mean()),      3) if not pv.empty     else None,
+            "recv":     round(float(rv.mean()),      3) if not rv.empty     else None,
+            "spu_in":   round(float(spuin_v.mean()), 3) if not spuin_v.empty  else None,
+            "spu_comp": round(float(spcomp_v.mean()),3) if not spcomp_v.empty else None,
             "fast": f2, "normal": n2, "ng": g2,
             "achieved": round((f2+n2)/tc2*100, 1) if tc2 else None,
         })
@@ -417,13 +421,15 @@ with left_col:
     st.markdown('<div class="section-title">🚗 Model Summary</div>', unsafe_allow_html=True)
     if stats["models"]:
         mdf = pd.DataFrame(stats["models"])
-        mdf["Avg L/T"]    = mdf["total"].apply(fmt_mins)
-        mdf["Avg PPO"]    = mdf["ppo"].apply(fmt_mins)
-        mdf["Avg Recv"]   = mdf["recv"].apply(fmt_mins)
-        mdf["Achievement"]= mdf["achieved"].apply(lambda x: f"{x:.1f}%" if x is not None else "—")
-        mdf["Over L/T"]   = mdf["ng"]
+        mdf["Avg L/T"]      = mdf["total"].apply(fmt_mins)
+        mdf["Avg PPO"]      = mdf["ppo"].apply(fmt_mins)
+        mdf["Avg Recv"]     = mdf["recv"].apply(fmt_mins)
+        mdf["Avg SPU In"]   = mdf["spu_in"].apply(fmt_mins)
+        mdf["Avg SPU Comp"] = mdf["spu_comp"].apply(fmt_mins)
+        mdf["Achievement"]  = mdf["achieved"].apply(lambda x: f"{x:.1f}%" if x is not None else "—")
+        mdf["Over L/T"]     = mdf["ng"]
         st.dataframe(
-            mdf[["name","n","Achievement","Over L/T","Avg L/T","Avg PPO","Avg Recv"]].rename(
+            mdf[["name","n","Achievement","Over L/T","Avg L/T","Avg Recv","Avg PPO","Avg SPU In","Avg SPU Comp"]].rename(
                 columns={"name":"Model","n":"Units"}),
             use_container_width=True, hide_index=True)
 
