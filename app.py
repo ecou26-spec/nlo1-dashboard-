@@ -122,7 +122,14 @@ CSV_URL  = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv
 @st.cache_data(ttl=60, show_spinner="🔄 Mengambil data terbaru...")
 def load_from_sheets():
     try:
-        df = pd.read_csv(CSV_URL, encoding="utf-8-sig")
+        import io, requests
+        resp = requests.get(CSV_URL)
+        resp.encoding = "utf-8-sig"
+        text = resp.text
+        # Auto-detect separator
+        first_line = text.split("\n")[0]
+        sep = ";" if first_line.count(";") > first_line.count(",") else ","
+        df = pd.read_csv(io.StringIO(text), sep=sep, encoding_errors="replace")
         df.columns = df.columns.str.strip().str.replace("\ufeff", "", regex=False)
         return df, None
     except Exception as e:
@@ -258,8 +265,6 @@ if df_raw is None or df_raw.empty:
     st.warning("⚠️ Google Sheets kosong. Silakan isi data terlebih dahulu.")
     st.stop()
 
-# DEBUG — tampilkan nama kolom aktual
-st.write("DEBUG kolom:", df_raw.columns.tolist())
 df = prepare_df(df_raw)
 
 # ── FILTERS ───────────────────────────────────────────────────────────────────
