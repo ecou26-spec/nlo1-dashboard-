@@ -258,6 +258,8 @@ if df_raw is None or df_raw.empty:
     st.warning("⚠️ Google Sheets kosong. Silakan isi data terlebih dahulu.")
     st.stop()
 
+# DEBUG — tampilkan nama kolom aktual
+st.write("DEBUG kolom:", df_raw.columns.tolist())
 df = prepare_df(df_raw)
 
 # ── FILTERS ───────────────────────────────────────────────────────────────────
