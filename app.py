@@ -60,7 +60,7 @@ PARAMS = {
         "Total":     {"avg": 6.079, "std": 2.806},
     },
     "NVDC Sunter": {
-        "Receiving": {"avg": 4.0,   "std": 0.5},
+        "Receiving": {"avg": 4.0,   "std": 1.5},
         "PPO":       {"avg": 1.25,  "std": 0.5},
         "SPU In":    {"avg": 1.0,   "std": 0.0},
         "SPU Comp":  {"avg": 0.75,  "std": 0.0},
