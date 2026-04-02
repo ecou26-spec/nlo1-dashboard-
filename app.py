@@ -43,37 +43,34 @@ def check_password():
 
 check_password()
 
-# ── DASHBOARD HEADER (STD CV 30%) ──────────────────────────────────────────────
-st.markdown(
-    """
-    <div style="
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding-top: 16px;
-        padding-bottom: 20px;
-    ">
-        <div style="font-size: 28px; font-weight: 600;">
-            🚗 NLO1 DEPT — LEAD TIME STD DEV DASHBOARD
-        </div>
 
+# ── DASHBOARD HEADER (SAFE STREAMLIT VERSION) ─────────────────────────────────
+col_title, col_badge = st.columns([5, 1])
+
+with col_title:
+    st.header("🚗 NLO1 DEPT — LEAD TIME STD DEV DASHBOARD")
+
+with col_badge:
+    st.markdown(
+        """
         <div style="
-            font-size: 13px;
-            color: #7fb3ff;
+            margin-top: 18px;
+            padding: 4px 10px;
+            border-radius: 12px;
             border: 1px solid #7fb3ff;
-            border-radius: 14px;
-            padding: 4px 12px;
-            white-space: nowrap;
+            color: #7fb3ff;
+            font-size: 13px;
+            text-align: center;
         ">
-            STD Target: <b>CV 30%</b>
+            STD Target<br><b>CV 30%</b>
         </div>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+        """,
+        unsafe_allow_html=True
+    )
 
-# spacer kecil biar tinggi dashboard mirip default Streamlit
-st.write("")
+st.write("")  # spacer kecil natural
+
+
 
 
 # ── PARAMS (Target CV 30%) ────────────────────────────────────────────────────
