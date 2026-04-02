@@ -60,18 +60,18 @@ PARAMS = {
         "Total":     {"avg": 6.079, "std": 2.806},
     },
     "NVDC Sunter": {
-        "Receiving": {"avg": 4.0,   "std": 2.0},
+        "Receiving": {"avg": 4.0,   "std": 1.75},
         "PPO":       {"avg": 1.25,  "std": 0.75},
         "SPU In":    {"avg": 1.0,   "std": 0.5},
         "SPU Comp":  {"avg": 0.75,  "std": 0.25},
-        "Total":     {"avg": 7.0,   "std": 2.75},
+        "Total":     {"avg": 7.0,   "std": 2.25},
     },
     "NVDC Sunter Lexus": {
-        "Receiving": {"avg": 2.667, "std": 1.29},
-        "PPO":       {"avg": 4.0,   "std": 1.5},
+        "Receiving": {"avg": 2.667, "std": 0.9},
+        "PPO":       {"avg": 4.0,   "std": 1.25},
         "SPU In":    {"avg": 0.0,   "std": 0.0},
         "SPU Comp":  {"avg": 0.0,   "std": 0.0},
-        "Total":     {"avg": 6.667, "std": 1.58},
+        "Total":     {"avg": 6.667, "std": 1.38},
     },
 }
 
