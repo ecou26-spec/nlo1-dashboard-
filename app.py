@@ -44,27 +44,6 @@ def check_password():
 check_password()
 
 
-# ── STD TARGET BADGE (NO TITLE, NO DUPLICATE) ──────────────────────────────────
-_, col_badge = st.columns([8, 2])
-
-with col_badge:
-    st.markdown(
-        """
-        <div style="
-            margin-top: 6px;
-            padding: 4px 10px;
-            border-radius: 12px;
-            border: 1px solid #7fb3ff;
-            color: #7fb3ff;
-            font-size: 13px;
-            text-align: center;
-        ">
-            STD Target<br><b>CV 30%</b>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
 
 
 # ── PARAMS (Target CV 30%) ────────────────────────────────────────────────────
