@@ -64,14 +64,14 @@ PARAMS = {
         "PPO":       {"avg": 1.25,  "std": 1.0},
         "SPU In":    {"avg": 1.0,   "std": 0.5},
         "SPU Comp":  {"avg": 0.75,  "std": 0.25},
-        "Total":     {"avg": 7.0,   "std": 3.5},
+        "Total":     {"avg": 7.0,   "std": 2.75},
     },
     "NVDC Sunter Lexus": {
         "Receiving": {"avg": 2.667, "std": 0.289},
         "PPO":       {"avg": 4.0,   "std": 0.5},
         "SPU In":    {"avg": 0.0,   "std": 0.0},
         "SPU Comp":  {"avg": 0.0,   "std": 0.0},
-        "Total":     {"avg": 6.667, "std": 0.764},
+        "Total":     {"avg": 6.667, "std": 0.578},
     },
 }
 
