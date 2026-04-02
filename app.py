@@ -43,6 +43,39 @@ def check_password():
 
 check_password()
 
+# ── DASHBOARD HEADER (STD CV 30%) ──────────────────────────────────────────────
+st.markdown(
+    """
+    <div style="
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-top: 16px;
+        padding-bottom: 20px;
+    ">
+        <div style="font-size: 28px; font-weight: 600;">
+            🚗 NLO1 DEPT — LEAD TIME STD DEV DASHBOARD
+        </div>
+
+        <div style="
+            font-size: 13px;
+            color: #7fb3ff;
+            border: 1px solid #7fb3ff;
+            border-radius: 14px;
+            padding: 4px 12px;
+            white-space: nowrap;
+        ">
+            STD Target: <b>CV 30%</b>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+# spacer kecil biar tinggi dashboard mirip default Streamlit
+st.write("")
+
+
 # ── PARAMS (Target CV 30%) ────────────────────────────────────────────────────
 PARAMS = {
     "meta": {
