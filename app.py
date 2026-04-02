@@ -12,6 +12,10 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# ── KEEP ALIVE (prevent auto-logout on inactivity) ────────────────────────────
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
 # ── LOGIN ─────────────────────────────────────────────────────────────────────
 def check_password():
     def login_form():
@@ -115,6 +119,11 @@ def classify(val, avg, std):
     if val <= hi: return "NORMAL"
     return "NG"
 
+def classify_by_loc(val, loc, pname):
+    """Classify a value using location-specific params."""
+    p = PARAMS[loc][pname]
+    return classify(val, p["avg"], p["std"])
+
 # ── FETCH FROM GOOGLE SHEETS ──────────────────────────────────────────────────
 SHEET_ID = "1WyUxyGQBD9SJQNSQ7WK_KIKVLiU8EbG6e9cqiQMmI1g"
 CSV_URL  = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
@@ -126,7 +135,6 @@ def load_from_sheets():
         resp = requests.get(CSV_URL)
         resp.encoding = "utf-8-sig"
         text = resp.text
-        # Auto-detect separator
         first_line = text.split("\n")[0]
         sep = ";" if first_line.count(";") > first_line.count(",") else ","
         df = pd.read_csv(io.StringIO(text), sep=sep, encoding_errors="replace")
@@ -137,30 +145,62 @@ def load_from_sheets():
 
 # ── COMPUTE ───────────────────────────────────────────────────────────────────
 def prepare_df(df):
-    df.columns = df.columns.str.strip().str.replace('\ufeff', '', regex=False)  # extra safety
+    df.columns = df.columns.str.strip().str.replace('\ufeff', '', regex=False)
     df["_date"]  = pd.to_datetime(df["PDIcomp. Date"], errors="coerce", dayfirst=True).dt.strftime("%Y-%m-%d")
     df["_month"] = df["_date"].str[:7]
     df["_loc"]   = df["Model"].apply(get_loc)
     return df.dropna(subset=["_date"])
 
-def calc_stats(df, loc):
+def calc_stats(df, sel_loc):
+    """
+    When sel_loc == "ALL", each row is classified using its own location's params.
+    When sel_loc is a specific location, use that location's params for all rows.
+    """
     if df.empty: return None
-    params = PARAMS[loc]
+
     result = {}
     for pname, col in FIELDS.items():
         if col not in df.columns:
             result[pname] = None
             continue
-        p = params[pname]
+
         vals = pd.to_numeric(df[col], errors="coerce")
-        valid = vals.dropna()
-        if valid.empty: result[pname] = None; continue
-        statuses = vals.apply(lambda v: classify(v, p["avg"], p["std"]))
+
+        # Classify each row using its own location param (when ALL),
+        # or the selected location param
+        if sel_loc == "ALL":
+            statuses = pd.Series([
+                classify(val, PARAMS[loc][pname]["avg"], PARAMS[loc][pname]["std"])
+                for val, loc in zip(vals, df["_loc"])
+            ], index=df.index)
+        else:
+            p = PARAMS[sel_loc][pname]
+            statuses = vals.apply(lambda v: classify(v, p["avg"], p["std"]))
+
+        valid  = vals.dropna()
         fast   = int((statuses == "FAST").sum())
         normal = int((statuses == "NORMAL").sum())
         ng     = int((statuses == "NG").sum())
         na     = int(statuses.isna().sum())
         tc     = fast + normal + ng
+
+        # For display: use weighted avg of params across locations (ALL) or single loc
+        if sel_loc == "ALL":
+            # compute weighted param avg/std based on how many rows per loc
+            loc_counts = df["_loc"].value_counts()
+            total_n = loc_counts.sum()
+            param_avg = sum(PARAMS[loc][pname]["avg"] * cnt for loc, cnt in loc_counts.items()
+                            if loc in PARAMS) / total_n if total_n else PARAMS["ALL"][pname]["avg"]
+            param_std = sum(PARAMS[loc][pname]["std"] * cnt for loc, cnt in loc_counts.items()
+                            if loc in PARAMS) / total_n if total_n else PARAMS["ALL"][pname]["std"]
+            thresh_lo = param_avg - param_std
+            thresh_hi = param_avg + param_std
+        else:
+            p = PARAMS[sel_loc][pname]
+            param_avg, param_std = p["avg"], p["std"]
+            thresh_lo = param_avg - param_std
+            thresh_hi = param_avg + param_std
+
         result[pname] = {
             "fast": fast, "normal": normal, "ng": ng, "na": na,
             "total_classified": tc,
@@ -168,15 +208,22 @@ def calc_stats(df, loc):
             "pct_normal": round(normal/tc*100, 1) if tc else 0,
             "pct_ng":     round(ng/tc*100, 1)     if tc else 0,
             "achieved":   round((fast+normal)/tc*100, 1) if tc else None,
-            "actual_avg": round(float(valid.mean()), 3),
+            "actual_avg": round(float(valid.mean()), 3) if not valid.empty else None,
             "actual_std": round(float(valid.std()), 3) if len(valid) > 1 else 0,
-            "param_avg":  p["avg"], "param_std": p["std"],
-            "thresh_lo":  round(p["avg"] - p["std"], 3),
-            "thresh_hi":  round(p["avg"] + p["std"], 3),
+            "param_avg":  round(param_avg, 3),
+            "param_std":  round(param_std, 3),
+            "thresh_lo":  round(thresh_lo, 3),
+            "thresh_hi":  round(thresh_hi, 3),
         }
+
+    # Per-model stats — each model uses its OWN location param
     models = []
     for m, mdf in df.groupby("Model"):
-        p   = params["Total"]
+        model_loc  = get_loc(m)
+        # Use model's own location params if ALL, else use selected loc params
+        use_loc = model_loc if sel_loc == "ALL" else sel_loc
+
+        p   = PARAMS[use_loc]["Total"]
         col = FIELDS["Total"]
         tv  = pd.to_numeric(mdf[col], errors="coerce") if col in mdf.columns else pd.Series(dtype=float)
         sts = tv.apply(lambda v: classify(v, p["avg"], p["std"]))
@@ -184,22 +231,25 @@ def calc_stats(df, loc):
         f2  = int((sts == "FAST").sum())
         n2  = int((sts == "NORMAL").sum())
         g2  = int((sts == "NG").sum())
-        pv  = pd.to_numeric(mdf.get(FIELDS["PPO"],   pd.Series(dtype=float)), errors="coerce").dropna()
-        rv  = pd.to_numeric(mdf.get(FIELDS["Receiving"], pd.Series(dtype=float)), errors="coerce").dropna()
-        tvv = tv.dropna()
+
+        pv       = pd.to_numeric(mdf.get(FIELDS["PPO"],      pd.Series(dtype=float)), errors="coerce").dropna()
+        rv       = pd.to_numeric(mdf.get(FIELDS["Receiving"],pd.Series(dtype=float)), errors="coerce").dropna()
+        tvv      = tv.dropna()
         spuin_v  = pd.to_numeric(mdf.get(FIELDS["SPU In"],   pd.Series(dtype=float)), errors="coerce").dropna()
         spcomp_v = pd.to_numeric(mdf.get(FIELDS["SPU Comp"], pd.Series(dtype=float)), errors="coerce").dropna()
         models.append({
             "name": m, "n": len(mdf),
-            "total":    round(float(tvv.mean()),     3) if not tvv.empty    else None,
-            "ppo":      round(float(pv.mean()),      3) if not pv.empty     else None,
-            "recv":     round(float(rv.mean()),      3) if not rv.empty     else None,
-            "spu_in":   round(float(spuin_v.mean()), 3) if not spuin_v.empty  else None,
-            "spu_comp": round(float(spcomp_v.mean()),3) if not spcomp_v.empty else None,
+            "loc":      model_loc,
+            "total":    round(float(tvv.mean()),      3) if not tvv.empty      else None,
+            "ppo":      round(float(pv.mean()),       3) if not pv.empty       else None,
+            "recv":     round(float(rv.mean()),       3) if not rv.empty       else None,
+            "spu_in":   round(float(spuin_v.mean()),  3) if not spuin_v.empty  else None,
+            "spu_comp": round(float(spcomp_v.mean()), 3) if not spcomp_v.empty else None,
             "fast": f2, "normal": n2, "ng": g2,
             "achieved": round((f2+n2)/tc2*100, 1) if tc2 else None,
         })
     models.sort(key=lambda x: x["total"] if x["total"] is not None else 999)
+
     t = result.get("Total")
     return {
         "total_units":  len(df),
@@ -312,7 +362,7 @@ if not stats:
 
 # ── PARAM NOTE ────────────────────────────────────────────────────────────────
 param_desc = {
-    "ALL":               "Global (25 models avg)",
+    "ALL":               "Per-location params (setiap model pakai param lokasinya masing-masing)",
     "NVDC Cibitung":     "Cibitung-specific (ALPHARD/CAMRY/HIACE/HILUX/LANDCRUISER/VELLFIRE/VOXY)",
     "NVDC Sunter":       "Sunter-specific (RUSH)",
     "NVDC Sunter Lexus": "Sunter Lexus-specific (LEXUS)",
@@ -345,12 +395,13 @@ if t_proc:
     color     = ach_color(ach)
     thresh_lo = t_proc["thresh_lo"]
     thresh_hi = t_proc["thresh_hi"]
+    thresh_note = "weighted avg threshold" if sel_loc == "ALL" else "param threshold"
     st.markdown(f"""
     <div style='background:#111d35;border-radius:10px;padding:16px 20px;border:1px solid rgba(100,160,255,.15)'>
       <div style='display:flex;justify-content:space-between;margin-bottom:8px'>
         <span style='font-size:2.2rem;font-weight:800;color:{color}'>{ach_val:.1f}%</span>
         <span style='color:#7a90bb;font-size:.7rem;align-self:center'>
-          FAST ≤{to_mins(thresh_lo)} min · NORMAL {to_mins(thresh_lo)}–{to_mins(thresh_hi)} min · Over >{to_mins(thresh_hi)} min
+          {"Per-location classification" if sel_loc == "ALL" else f"FAST ≤{to_mins(thresh_lo)} min · NORMAL {to_mins(thresh_lo)}–{to_mins(thresh_hi)} min · Over >{to_mins(thresh_hi)} min"}
         </span>
       </div>
       <div style='display:flex;height:24px;border-radius:6px;overflow:hidden;gap:2px'>
@@ -403,7 +454,7 @@ for i, (pname, color) in enumerate(PROC_COLORS.items()):
           </div>
           <div style="margin-top:8px;font-size:.55rem;display:flex;justify-content:space-between;color:#7a90bb">
             <span style="color:#00e5a0">≤{to_mins(p['thresh_lo'])}</span>
-            <span>min</span>
+            <span>{'weighted' if sel_loc == 'ALL' else 'min'}</span>
             <span style="color:#ff4060">&gt;{to_mins(p['thresh_hi'])}</span>
           </div>
           <div style="display:flex;height:6px;border-radius:3px;overflow:hidden;margin-top:4px;gap:1px">
@@ -569,8 +620,8 @@ with right_col:
         card_html = (
             f"<div class='finding-card' style='border-left:3px solid {f['color']}'>"
             f"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:4px'>"
-            f"<div style='font-size:.68rem;font-weight:700;color:{f["color"]}'>{f['ico']} {f['title']}</div>"
-            f"<div style='font-size:.6rem;font-weight:700;color:{f["color"]};background:rgba(255,255,255,.06);"
+            f"<div style='font-size:.68rem;font-weight:700;color:{f['color']}'>{f['ico']} {f['title']}</div>"
+            f"<div style='font-size:.6rem;font-weight:700;color:{f['color']};background:rgba(255,255,255,.06);"
             f"padding:2px 8px;border-radius:10px'>{f['badge']}</div>"
             f"</div>"
             f"<div style='font-size:.61rem;color:#a0b4cc;line-height:1.5'>{f['desc']}</div>"
