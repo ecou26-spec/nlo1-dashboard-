@@ -44,17 +44,14 @@ def check_password():
 check_password()
 
 
-# ── DASHBOARD HEADER (SAFE STREAMLIT VERSION) ─────────────────────────────────
-col_title, col_badge = st.columns([5, 1])
-
-with col_title:
-    st.header("🚗 NLO1 DEPT — LEAD TIME STD DEV DASHBOARD")
+# ── STD TARGET BADGE (NO TITLE, NO DUPLICATE) ──────────────────────────────────
+_, col_badge = st.columns([8, 2])
 
 with col_badge:
     st.markdown(
         """
         <div style="
-            margin-top: 18px;
+            margin-top: 6px;
             padding: 4px 10px;
             border-radius: 12px;
             border: 1px solid #7fb3ff;
@@ -67,9 +64,6 @@ with col_badge:
         """,
         unsafe_allow_html=True
     )
-
-st.write("")  # spacer kecil natural
-
 
 
 
