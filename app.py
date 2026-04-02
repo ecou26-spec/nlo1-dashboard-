@@ -43,35 +43,46 @@ def check_password():
 
 check_password()
 
-# ── PARAMS ────────────────────────────────────────────────────────────────────
+# ── PARAMS (Target CV 30%) ────────────────────────────────────────────────────
 PARAMS = {
+    "meta": {
+        "cv_target": 0.30,
+        "note": (
+            "Master parameter diseragamkan ke CV (Coefficient of Variation) – Range Ideal 30% sebagai target stabilitas proses, "
+            "bukan representasi kondisi aktual operasional."
+        )
+    },
+
     "ALL": {
-        "Receiving": {"avg": 1.54,  "std": 1.143},
-        "PPO":       {"avg": 2.86,  "std": 2.135},
-        "SPU In":    {"avg": 1.01,  "std": 0.523},
-        "SPU Comp":  {"avg": 0.80,  "std": 0.479},
-        "Total":     {"avg": 6.26,  "std": 2.468},
+        "Receiving": {"avg": 1.54,  "std": 0.46},
+        "PPO":       {"avg": 2.86,  "std": 0.86},
+        "SPU In":    {"avg": 1.01,  "std": 0.30},
+        "SPU Comp":  {"avg": 0.80,  "std": 0.24},
+        "Total":     {"avg": 6.26,  "std": 1.88},
     },
+
     "NVDC Cibitung": {
-        "Receiving": {"avg": 0.974, "std": 0.416},
-        "PPO":       {"avg": 2.934, "std": 2.317},
-        "SPU In":    {"avg": 1.171, "std": 0.409},
-        "SPU Comp":  {"avg": 0.934, "std": 0.424},
-        "Total":     {"avg": 6.079, "std": 2.806},
+        "Receiving": {"avg": 0.974, "std": 0.29},
+        "PPO":       {"avg": 2.934, "std": 0.88},  # FIXED
+        "SPU In":    {"avg": 1.171, "std": 0.35},
+        "SPU Comp":  {"avg": 0.934, "std": 0.28},
+        "Total":     {"avg": 6.079, "std": 1.82},
     },
+
     "NVDC Sunter": {
-        "Receiving": {"avg": 4.0,   "std": 1.75},
-        "PPO":       {"avg": 1.25,  "std": 0.75},
-        "SPU In":    {"avg": 1.0,   "std": 0.5},
-        "SPU Comp":  {"avg": 0.75,  "std": 0.25},
-        "Total":     {"avg": 7.0,   "std": 2.25},
+        "Receiving": {"avg": 4.0,   "std": 1.20},
+        "PPO":       {"avg": 1.25,  "std": 0.38},
+        "SPU In":    {"avg": 1.0,   "std": 0.30},
+        "SPU Comp":  {"avg": 0.75,  "std": 0.23},
+        "Total":     {"avg": 7.0,   "std": 2.10},
     },
+
     "NVDC Sunter Lexus": {
-        "Receiving": {"avg": 2.667, "std": 0.9},
-        "PPO":       {"avg": 4.0,   "std": 1.25},
+        "Receiving": {"avg": 2.667, "std": 0.80},
+        "PPO":       {"avg": 4.0,   "std": 1.20},
         "SPU In":    {"avg": 0.0,   "std": 0.0},
-        "SPU Comp":  {"avg": 0.0,   "std": 0.0},
-        "Total":     {"avg": 6.667, "std": 1.38},
+        "SPU Comp":  {"avg": 0.0,  "std": 0.0},
+        "Total":     {"avg": 6.667, "std": 2.00},
     },
 }
 
