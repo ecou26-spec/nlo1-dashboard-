@@ -6,7 +6,7 @@ from datetime import datetime
 
 # ── PAGE CONFIG ───────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="NLO1 Lead Time Dashboard (Std CV: 30%)",
+    page_title="NLO1 Lead Time Dashboard (Std CV: 25%)",
     page_icon="🚗",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -21,7 +21,7 @@ def check_password():
     def login_form():
         st.markdown("""
         <div style='text-align:center; padding: 60px 0 20px 0'>
-            <h2 style='color:#7fb3ff'>🚗 NLO1 Lead Time Dashboard (Std CV: 30%)</h2>
+            <h2 style='color:#7fb3ff'>🚗 NLO1 Lead Time Dashboard (Std CV: 25%)</h2>
             <p style='color:#888'>NLO1 Dept — Toyota Astra Motor</p>
         </div>
         """, unsafe_allow_html=True)
@@ -46,46 +46,46 @@ check_password()
 
 
 
-# ── PARAMS (Target CV 30%) ────────────────────────────────────────────────────
+# ── PARAMS (Target CV 25%) ────────────────────────────────────────────────────
 PARAMS = {
     "meta": {
-        "cv_target": 0.30,
+        "cv_target": 0.25,
         "note": (
-            "Master parameter diseragamkan ke CV (Coefficient of Variation) – Range Ideal 30% sebagai target stabilitas proses, "
+            "Master parameter diseragamkan ke CV (Coefficient of Variation) – Range Ideal 25% sebagai target stabilitas proses, "
             "bukan representasi kondisi aktual operasional."
         )
     },
 
     "ALL": {
-        "Receiving": {"avg": 1.54,  "std": 0.46},
-        "PPO":       {"avg": 2.86,  "std": 0.86},
-        "SPU In":    {"avg": 1.01,  "std": 0.30},
-        "SPU Comp":  {"avg": 0.80,  "std": 0.24},
-        "Total":     {"avg": 6.26,  "std": 1.88},
+        "Receiving": {"avg": 1.54,  "std": 0.39},
+        "PPO":       {"avg": 2.86,  "std": 0.72},
+        "SPU In":    {"avg": 1.01,  "std": 0.25},
+        "SPU Comp":  {"avg": 0.80,  "std": 0.20},
+        "Total":     {"avg": 6.26,  "std": 1.57},
     },
 
     "NVDC Cibitung": {
-        "Receiving": {"avg": 0.974, "std": 0.29},
-        "PPO":       {"avg": 2.934, "std": 0.88},  # FIXED
-        "SPU In":    {"avg": 1.171, "std": 0.35},
-        "SPU Comp":  {"avg": 0.934, "std": 0.28},
-        "Total":     {"avg": 6.079, "std": 1.82},
+        "Receiving": {"avg": 0.974, "std": 0.24},
+        "PPO":       {"avg": 2.934, "std": 0.73},  # FIXED
+        "SPU In":    {"avg": 1.171, "std": 0.29},
+        "SPU Comp":  {"avg": 0.934, "std": 0.23},
+        "Total":     {"avg": 6.079, "std": 1.52},
     },
 
     "NVDC Sunter": {
-        "Receiving": {"avg": 4.0,   "std": 1.20},
-        "PPO":       {"avg": 1.25,  "std": 0.38},
-        "SPU In":    {"avg": 1.0,   "std": 0.30},
-        "SPU Comp":  {"avg": 0.75,  "std": 0.23},
-        "Total":     {"avg": 7.0,   "std": 2.10},
+        "Receiving": {"avg": 4.0,   "std": 1.00},
+        "PPO":       {"avg": 1.25,  "std": 0.31},
+        "SPU In":    {"avg": 1.0,   "std": 0.25},
+        "SPU Comp":  {"avg": 0.75,  "std": 0.19},
+        "Total":     {"avg": 7.0,   "std": 1.75},
     },
 
     "NVDC Sunter Lexus": {
-        "Receiving": {"avg": 2.667, "std": 0.80},
-        "PPO":       {"avg": 4.0,   "std": 1.20},
-        "SPU In":    {"avg": 0.0,   "std": 0.0},
-        "SPU Comp":  {"avg": 0.0,  "std": 0.0},
-        "Total":     {"avg": 6.667, "std": 2.00},
+        "Receiving": {"avg": 2.667, "std": 0.67},
+        "PPO":       {"avg": 4.0,   "std": 1.00},
+        "SPU In":    {"avg": 0.0,   "std": 0.00},
+        "SPU Comp":  {"avg": 0.0,   "std": 0.00},
+        "Total":     {"avg": 6.667, "std": 1.67},
     },
 }
 
