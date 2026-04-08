@@ -6,7 +6,7 @@ from datetime import datetime
 
 # ── PAGE CONFIG ───────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="NLO1 Lead Time Dashboard",
+    page_title="NLO1 Lead Time Dashboard (Std CV: 25%)",
     page_icon="🚗",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -21,7 +21,7 @@ def check_password():
     def login_form():
         st.markdown("""
         <div style='text-align:center; padding: 60px 0 20px 0'>
-            <h2 style='color:#7fb3ff'>🚗 NLO1 Lead Time Dashboard</h2>
+            <h2 style='color:#7fb3ff'>🚗 NLO1 Lead Time Dashboard (Std CV: 25%)</h2>
             <p style='color:#888'>NLO1 Dept — Toyota Astra Motor</p>
         </div>
         """, unsafe_allow_html=True)
@@ -43,35 +43,49 @@ def check_password():
 
 check_password()
 
-# ── PARAMS ────────────────────────────────────────────────────────────────────
+
+
+
+# ── PARAMS (Target CV 25%) ────────────────────────────────────────────────────
 PARAMS = {
+    "meta": {
+        "cv_target": 0.25,
+        "note": (
+            "Master parameter diseragamkan ke CV (Coefficient of Variation) – Range Ideal 25% sebagai target stabilitas proses, "
+            "bukan representasi kondisi aktual operasional."
+        )
+    },
+
     "ALL": {
-        "Receiving": {"avg": 1.54,  "std": 1.143},
-        "PPO":       {"avg": 2.86,  "std": 2.135},
-        "SPU In":    {"avg": 1.01,  "std": 0.523},
-        "SPU Comp":  {"avg": 0.80,  "std": 0.479},
-        "Total":     {"avg": 6.26,  "std": 2.468},
+        "Receiving": {"avg": 1.54,  "std": 0.39},
+        "PPO":       {"avg": 2.86,  "std": 0.72},
+        "SPU In":    {"avg": 1.01,  "std": 0.25},
+        "SPU Comp":  {"avg": 0.80,  "std": 0.20},
+        "Total":     {"avg": 6.26,  "std": 1.57},
     },
+
     "NVDC Cibitung": {
-        "Receiving": {"avg": 0.974, "std": 0.416},
-        "PPO":       {"avg": 2.934, "std": 2.317},
-        "SPU In":    {"avg": 1.171, "std": 0.409},
-        "SPU Comp":  {"avg": 0.934, "std": 0.424},
-        "Total":     {"avg": 6.079, "std": 2.806},
+        "Receiving": {"avg": 0.974, "std": 0.24},
+        "PPO":       {"avg": 2.934, "std": 0.73},  # FIXED
+        "SPU In":    {"avg": 1.171, "std": 0.29},
+        "SPU Comp":  {"avg": 0.934, "std": 0.23},
+        "Total":     {"avg": 6.079, "std": 1.52},
     },
+
     "NVDC Sunter": {
-        "Receiving": {"avg": 4.0,   "std": 0.5},
-        "PPO":       {"avg": 1.25,  "std": 0.5},
-        "SPU In":    {"avg": 1.0,   "std": 0.0},
-        "SPU Comp":  {"avg": 0.75,  "std": 0.0},
-        "Total":     {"avg": 7.0,   "std": 0.5},
+        "Receiving": {"avg": 4.0,   "std": 1.00},
+        "PPO":       {"avg": 1.25,  "std": 0.31},
+        "SPU In":    {"avg": 1.0,   "std": 0.25},
+        "SPU Comp":  {"avg": 0.75,  "std": 0.19},
+        "Total":     {"avg": 7.0,   "std": 1.75},
     },
+
     "NVDC Sunter Lexus": {
-        "Receiving": {"avg": 2.667, "std": 0.289},
-        "PPO":       {"avg": 4.0,   "std": 0.5},
-        "SPU In":    {"avg": 0.0,   "std": 0.0},
-        "SPU Comp":  {"avg": 0.0,   "std": 0.0},
-        "Total":     {"avg": 6.667, "std": 0.764},
+        "Receiving": {"avg": 2.667, "std": 0.67},
+        "PPO":       {"avg": 4.0,   "std": 1.00},
+        "SPU In":    {"avg": 0.0,   "std": 0.00},
+        "SPU Comp":  {"avg": 0.0,   "std": 0.00},
+        "Total":     {"avg": 6.667, "std": 1.67},
     },
 }
 
@@ -144,23 +158,9 @@ def load_from_sheets():
         return None, str(e)
 
 # ── COMPUTE ───────────────────────────────────────────────────────────────────
-def parse_mixed_dates(series):
-    """
-    Handle mixed date formats in source data:
-    - M/D/YYYY H:MM  (e.g. '3/16/2026 16:49')
-    - YYYY-MM-DD HH:MM:SS  (e.g. '2026-05-02 10:16:00')
-    Note: dayfirst=True causes ISO dates to be parsed incorrectly (day/month swapped).
-    """
-    raw = series.astype(str)
-    fmt_mdy  = pd.to_datetime(raw, format="%m/%d/%Y %H:%M",    errors="coerce")
-    fmt_iso1 = pd.to_datetime(raw, format="%Y-%m-%d %H:%M:%S", errors="coerce")
-    fmt_iso2 = pd.to_datetime(raw, format="%Y-%m-%d %H:%M",    errors="coerce")
-    # Merge: M/D/YYYY first, then fill NaT with ISO formats
-    return fmt_mdy.fillna(fmt_iso1).fillna(fmt_iso2)
-
 def prepare_df(df):
     df.columns = df.columns.str.strip().str.replace('\ufeff', '', regex=False)
-    df["_date"]  = parse_mixed_dates(df["PDIcomp. Date"]).dt.strftime("%Y-%m-%d")
+    df["_date"]  = pd.to_datetime(df["PDIcomp. Date"], errors="coerce", dayfirst=True).dt.strftime("%Y-%m-%d")
     df["_month"] = df["_date"].str[:7]
     df["_loc"]   = df["Model"].apply(get_loc)
     return df.dropna(subset=["_date"])
