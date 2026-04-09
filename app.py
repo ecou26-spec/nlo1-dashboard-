@@ -160,7 +160,8 @@ def load_from_sheets():
 # ── COMPUTE ───────────────────────────────────────────────────────────────────
 def prepare_df(df):
     df.columns = df.columns.str.strip().str.replace('\ufeff', '', regex=False)
-    df["_date"]  = pd.to_datetime(df["PDIcomp. Date"], errors="coerce", dayfirst=True).dt.strftime("%Y-%m-%d")
+    # ✅ FIX: dayfirst=False karena format di Google Sheets adalah M/D/YYYY (American)
+    df["_date"]  = pd.to_datetime(df["PDIcomp. Date"], errors="coerce", dayfirst=False).dt.strftime("%Y-%m-%d")
     df["_month"] = df["_date"].str[:7]
     df["_loc"]   = df["Model"].apply(get_loc)
     return df.dropna(subset=["_date"])
