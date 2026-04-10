@@ -6,7 +6,7 @@ from datetime import datetime
 
 # ── PAGE CONFIG ───────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="NLO1 Lead Time Dashboard (Std CV: 25%)",
+    page_title="NLO1 Lead Time Dashboard",
     page_icon="🚗",
     layout="wide",
     initial_sidebar_state="collapsed"
