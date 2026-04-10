@@ -722,7 +722,11 @@ if prompt := st.chat_input("Tanya sesuatu... contoh: 'model mana paling banyak O
                 resp.raise_for_status()
                 answer = resp.json()["content"][0]["text"]
             except Exception as e:
-                answer = f"❌ Error memanggil AI: {str(e)}"
+                try:
+                    err_detail = resp.json()
+                except:
+                    err_detail = "no detail"
+                answer = f"❌ Error: {str(e)} | Detail: {err_detail}"
 
         st.markdown(answer)
         st.session_state.chat_history.append({"role": "assistant", "content": answer})
