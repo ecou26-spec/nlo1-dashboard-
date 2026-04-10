@@ -680,9 +680,23 @@ Threshold Over: >{to_mins(t['thresh_hi'])} min
                 f"avg_ppo={fmt_mins(m['ppo'])}, avg_recv={fmt_mins(m['recv'])}, "
                 f"over={m['ng']} units\n")
 
-    ctx += "\n=== RAW DATA UNIT (max 200 baris) ===\n"
+    ctx += "\n=== RAW DATA UNIT OVER L/T (NG only) ===\n"
     ctx += "Frame No | Model | Dealer | Tanggal | Total | Recv | PPO | SPU In | SPU Comp | Status\n"
-    for _, row in df_filt.head(200).iterrows():
+    # Filter hanya NG dulu
+    ng_rows = []
+    for _, row in df_filt.iterrows():
+        try:
+            loc = str(row.get("_loc", "NVDC Cibitung"))
+            total = row.get("L/Time Total", None)
+            if total and str(total) != "nan":
+                p = PARAMS[loc]["Total"]
+                status = classify(float(total), p["avg"], p["std"])
+                if status == "NG":
+                    ng_rows.append(row)
+        except:
+            pass
+    ctx += f"Total unit Over L/T: {len(ng_rows)} unit\n"
+    for row in ng_rows[:100]:
         try:
             frame   = str(row.get("Frame No.", "-"))
             model   = str(row.get("Model", "-"))
@@ -740,7 +754,7 @@ if prompt := st.chat_input("Tanya sesuatu... contoh: 'model mana paling banyak O
                         "Content-Type": "application/json",
                     },
                     json={
-                        "model": "llama-3.3-70b-versatile",
+                        "model": "llama3-groq-8b-8192-tool-use-preview",
                         "max_tokens": 1000,
                         "messages": [{"role": "system", "content": system_prompt}] + messages_payload,
                     },
