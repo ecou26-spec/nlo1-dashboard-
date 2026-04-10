@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -43,6 +44,7 @@ def check_password():
 
 check_password()
 
+st.write("🔑 Secrets keys:", list(st.secrets.keys()))
 
 # ── PARAMS (Target CV 25%) ────────────────────────────────────────────────────
 PARAMS = {
@@ -707,7 +709,7 @@ if prompt := st.chat_input("Tanya sesuatu... contoh: 'model mana paling banyak O
                 resp = req.post(
                     "https://api.groq.com/openai/v1/chat/completions",
                     headers={
-                        "Authorization": f"Bearer {st.secrets['GROQ_API_KEY']}",
+                        "Authorization": f"Bearer {st.secrets.get('GROQ_API_KEY', st.secrets.get('groq_api_key', os.environ.get('GROQ_API_KEY', '')))}",
                         "Content-Type": "application/json",
                     },
                     json={
