@@ -696,7 +696,7 @@ Threshold Over: >{to_mins(t['thresh_hi'])} min
         except:
             pass
     ctx += f"Total unit Over L/T: {len(ng_rows)} unit\n"
-    for row in ng_rows[:100]:
+    for row in ng_rows[:50]:
         try:
             frame   = str(row.get("Frame No.", "-"))
             model   = str(row.get("Model", "-"))
@@ -748,12 +748,14 @@ if prompt := st.chat_input("Tanya sesuatu... contoh: 'model mana paling banyak O
                 ]
 
                 gemini_key = st.secrets.get("GEMINI_API_KEY", st.secrets.get("gemini_api_key", ""))
+                # Buat context ringkas - hanya kirim stats + NG units
+                short_ctx = system_prompt[:4000] if len(system_prompt) > 4000 else system_prompt
                 resp = req.post(
-                    f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}",
+                    f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key={gemini_key}",
                     headers={"Content-Type": "application/json"},
                     json={
-                        "contents": [{"role": "user", "parts": [{"text": system_prompt + "\n\nPertanyaan: " + prompt}]}],
-                        "generationConfig": {"maxOutputTokens": 1000},
+                        "contents": [{"role": "user", "parts": [{"text": short_ctx + "\n\nPertanyaan: " + prompt}]}],
+                        "generationConfig": {"maxOutputTokens": 800},
                     },
                     timeout=30,
                 )
