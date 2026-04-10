@@ -749,7 +749,7 @@ if prompt := st.chat_input("Tanya sesuatu... contoh: 'model mana paling banyak O
 
                 gemini_key = st.secrets.get("GEMINI_API_KEY", st.secrets.get("gemini_api_key", ""))
                 resp = req.post(
-                    f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}",
+                    f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}",
                     headers={"Content-Type": "application/json"},
                     json={
                         "contents": [{"role": "user", "parts": [{"text": system_prompt + "\n\nPertanyaan: " + prompt}]}],
