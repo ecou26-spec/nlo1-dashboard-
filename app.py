@@ -680,6 +680,35 @@ Threshold Over: >{to_mins(t['thresh_hi'])} min
                 f"avg_ppo={fmt_mins(m['ppo'])}, avg_recv={fmt_mins(m['recv'])}, "
                 f"over={m['ng']} units\n")
 
+    ctx += "\n=== RAW DATA UNIT (max 200 baris) ===\n"
+    ctx += "Frame No | Model | Dealer | Tanggal | Total | Recv | PPO | SPU In | SPU Comp | Status\n"
+    for _, row in df_filt.head(200).iterrows():
+        try:
+            frame   = str(row.get("Frame No.", "-"))
+            model   = str(row.get("Model", "-"))
+            dealer  = str(row.get("Dealer", "-"))
+            date    = str(row.get("_date", "-"))
+            loc     = str(row.get("_loc", "NVDC Cibitung"))
+            total   = row.get("L/Time Total", None)
+            recv    = row.get("L/T PDI-PPOin", None)
+            ppo     = row.get("L/T PPOIn-PPOcomp", None)
+            spuin   = row.get("L/T PPO_SPUin", None)
+            spucomp = row.get("L/T SPUin _SPUcomp", None)
+            try:
+                p = PARAMS[loc]["Total"]
+                status = classify(float(total), p["avg"], p["std"]) if total and str(total) != "nan" else "-"
+            except:
+                status = "-"
+            ctx += (f"{frame} | {model} | {dealer} | {date} | "
+                    f"{fmt_mins(float(total)) if total and str(total) != 'nan' else '-'} | "
+                    f"{fmt_mins(float(recv)) if recv and str(recv) != 'nan' else '-'} | "
+                    f"{fmt_mins(float(ppo)) if ppo and str(ppo) != 'nan' else '-'} | "
+                    f"{fmt_mins(float(spuin)) if spuin and str(spuin) != 'nan' else '-'} | "
+                    f"{fmt_mins(float(spucomp)) if spucomp and str(spucomp) != 'nan' else '-'} | "
+                    f"{status}\n")
+        except:
+            pass
+
     return ctx
 
 # Tampilkan chat history
