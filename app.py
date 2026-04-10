@@ -44,8 +44,6 @@ def check_password():
 
 check_password()
 
-st.write("🔑 Secrets keys:", list(st.secrets.keys()))
-
 # ── PARAMS (Target CV 25%) ────────────────────────────────────────────────────
 PARAMS = {
     "meta": {
@@ -709,11 +707,11 @@ if prompt := st.chat_input("Tanya sesuatu... contoh: 'model mana paling banyak O
                 resp = req.post(
                     "https://api.groq.com/openai/v1/chat/completions",
                     headers={
-                        "Authorization": f"Bearer {st.secrets.get('GROQ_API_KEY', st.secrets.get('groq_api_key', os.environ.get('GROQ_API_KEY', '')))}",
+                        "Authorization": f"Bearer {st.secrets.get('groq_api_key', st.secrets.get('GROQ_API_KEY', os.environ.get('GROQ_API_KEY', '')))}",
                         "Content-Type": "application/json",
                     },
                     json={
-                        "model": "llama3-8b-8192",
+                        "model": "llama-3.3-70b-versatile",
                         "max_tokens": 1000,
                         "messages": [{"role": "system", "content": system_prompt}] + messages_payload,
                     },
