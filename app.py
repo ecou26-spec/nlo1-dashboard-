@@ -705,22 +705,20 @@ if prompt := st.chat_input("Tanya sesuatu... contoh: 'model mana paling banyak O
                 ]
 
                 resp = req.post(
-                    "https://api.anthropic.com/v1/messages",
+                    "https://api.groq.com/openai/v1/chat/completions",
                     headers={
-                        "x-api-key": st.secrets["ANTHROPIC_API_KEY"],
-                        "anthropic-version": "2023-06-01",
-                        "content-type": "application/json",
+                        "Authorization": f"Bearer {st.secrets['GROQ_API_KEY']}",
+                        "Content-Type": "application/json",
                     },
                     json={
-                        "model": "claude-3-5-haiku-20241022",
+                        "model": "llama3-8b-8192",
                         "max_tokens": 1000,
-                        "system": system_prompt,
-                        "messages": messages_payload,
+                        "messages": [{"role": "system", "content": system_prompt}] + messages_payload,
                     },
                     timeout=30,
                 )
                 resp.raise_for_status()
-                answer = resp.json()["content"][0]["text"]
+                answer = resp.json()["choices"][0]["message"]["content"]
             except Exception as e:
                 try:
                     err_detail = resp.json()
