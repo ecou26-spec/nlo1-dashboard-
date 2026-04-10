@@ -44,8 +44,6 @@ def check_password():
 check_password()
 
 
-
-
 # ── PARAMS (Target CV 25%) ────────────────────────────────────────────────────
 PARAMS = {
     "meta": {
@@ -66,7 +64,7 @@ PARAMS = {
 
     "NVDC Cibitung": {
         "Receiving": {"avg": 0.974, "std": 0.24},
-        "PPO":       {"avg": 2.934, "std": 0.73},  # FIXED
+        "PPO":       {"avg": 2.934, "std": 0.73},
         "SPU In":    {"avg": 1.171, "std": 0.29},
         "SPU Comp":  {"avg": 0.934, "std": 0.23},
         "Total":     {"avg": 6.079, "std": 1.52},
@@ -134,7 +132,6 @@ def classify(val, avg, std):
     return "NG"
 
 def classify_by_loc(val, loc, pname):
-    """Classify a value using location-specific params."""
     p = PARAMS[loc][pname]
     return classify(val, p["avg"], p["std"])
 
@@ -160,17 +157,12 @@ def load_from_sheets():
 # ── COMPUTE ───────────────────────────────────────────────────────────────────
 def prepare_df(df):
     df.columns = df.columns.str.strip().str.replace('\ufeff', '', regex=False)
-    # ✅ FIX: dayfirst=False karena format di Google Sheets adalah M/D/YYYY (American)
     df["_date"]  = pd.to_datetime(df["PDIcomp. Date"], errors="coerce", dayfirst=False).dt.strftime("%Y-%m-%d")
     df["_month"] = df["_date"].str[:7]
     df["_loc"]   = df["Model"].apply(get_loc)
     return df.dropna(subset=["_date"])
 
 def calc_stats(df, sel_loc):
-    """
-    When sel_loc == "ALL", each row is classified using its own location's params.
-    When sel_loc is a specific location, use that location's params for all rows.
-    """
     if df.empty: return None
 
     result = {}
@@ -181,8 +173,6 @@ def calc_stats(df, sel_loc):
 
         vals = pd.to_numeric(df[col], errors="coerce")
 
-        # Classify each row using its own location param (when ALL),
-        # or the selected location param
         if sel_loc == "ALL":
             statuses = pd.Series([
                 classify(val, PARAMS[loc][pname]["avg"], PARAMS[loc][pname]["std"])
@@ -199,9 +189,7 @@ def calc_stats(df, sel_loc):
         na     = int(statuses.isna().sum())
         tc     = fast + normal + ng
 
-        # For display: use weighted avg of params across locations (ALL) or single loc
         if sel_loc == "ALL":
-            # compute weighted param avg/std based on how many rows per loc
             loc_counts = df["_loc"].value_counts()
             total_n = loc_counts.sum()
             param_avg = sum(PARAMS[loc][pname]["avg"] * cnt for loc, cnt in loc_counts.items()
@@ -231,11 +219,9 @@ def calc_stats(df, sel_loc):
             "thresh_hi":  round(thresh_hi, 3),
         }
 
-    # Per-model stats — each model uses its OWN location param
     models = []
     for m, mdf in df.groupby("Model"):
         model_loc  = get_loc(m)
-        # Use model's own location params if ALL, else use selected loc params
         use_loc = model_loc if sel_loc == "ALL" else sel_loc
 
         p   = PARAMS[use_loc]["Total"]
@@ -410,7 +396,6 @@ if t_proc:
     color     = ach_color(ach)
     thresh_lo = t_proc["thresh_lo"]
     thresh_hi = t_proc["thresh_hi"]
-    thresh_note = "weighted avg threshold" if sel_loc == "ALL" else "param threshold"
     st.markdown(f"""
     <div style='background:#111d35;border-radius:10px;padding:16px 20px;border:1px solid rgba(100,160,255,.15)'>
       <div style='display:flex;justify-content:space-between;margin-bottom:8px'>
@@ -644,6 +629,109 @@ with right_col:
             f"</div>"
         )
         st.markdown(card_html, unsafe_allow_html=True)
+
+# ── CHATBOT ───────────────────────────────────────────────────────────────────
+st.markdown('<div class="section-title">🤖 Tanya Data Dashboard</div>', unsafe_allow_html=True)
+
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
+def build_data_context(stats, sel_loc, sel_month, sel_date, df_filt):
+    ctx = f"""Kamu adalah asisten analisis data untuk NLO1 Dept - Toyota Astra Motor.
+Jawab dalam Bahasa Indonesia, singkat dan langsung ke poin. Gunakan data berikut untuk menjawab pertanyaan.
+
+=== FILTER AKTIF ===
+Lokasi: {sel_loc}
+Bulan: {sel_month}
+Tanggal: {sel_date}
+Total Units: {stats['total_units']}
+Jumlah Model: {stats['models_count']}
+Over L/T: {stats['ng_units']}
+"""
+    t = stats["processes"].get("Total")
+    if t:
+        ctx += f"""
+=== TOTAL L/T ===
+Achievement: {t['achieved']}%
+FAST: {t['fast']} units ({t['pct_fast']}%)
+NORMAL: {t['normal']} units ({t['pct_normal']}%)
+Over L/T (NG): {t['ng']} units ({t['pct_ng']}%)
+Actual Avg: {fmt_mins(t['actual_avg'])}
+Param Avg: {fmt_mins(t['param_avg'])}
+Actual Std Dev: ±{to_mins(t['actual_std'])} min
+Param Std Dev: ±{to_mins(t['param_std'])} min
+Threshold FAST: ≤{to_mins(t['thresh_lo'])} min
+Threshold Over: >{to_mins(t['thresh_hi'])} min
+"""
+    ctx += "\n=== PER PROSES ===\n"
+    for pname in ["Receiving", "PPO", "SPU In", "SPU Comp"]:
+        p = stats["processes"].get(pname)
+        if p:
+            ctx += (f"{pname}: achievement={p['achieved']}%, "
+                    f"actual_avg={fmt_mins(p['actual_avg'])}, "
+                    f"param_avg={fmt_mins(p['param_avg'])}, "
+                    f"actual_std=±{to_mins(p['actual_std'])} min, "
+                    f"over={p['ng']} units ({p['pct_ng']}%)\n")
+
+    ctx += "\n=== PER MODEL ===\n"
+    for m in stats["models"]:
+        ctx += (f"{m['name']}: {m['n']} units, lokasi={m['loc']}, "
+                f"achievement={m['achieved']}%, avg_total={fmt_mins(m['total'])}, "
+                f"avg_ppo={fmt_mins(m['ppo'])}, avg_recv={fmt_mins(m['recv'])}, "
+                f"over={m['ng']} units\n")
+
+    return ctx
+
+# Tampilkan chat history
+for msg in st.session_state.chat_history:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+
+# Chat input
+if prompt := st.chat_input("Tanya sesuatu... contoh: 'model mana paling banyak Over L/T?' atau 'analisis proses PPO'"):
+    st.session_state.chat_history.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    with st.chat_message("assistant"):
+        with st.spinner("Menganalisis data..."):
+            try:
+                import requests as req
+
+                system_prompt = build_data_context(stats, sel_loc, sel_month, sel_date, df_filt)
+                messages_payload = [
+                    {"role": m["role"], "content": m["content"]}
+                    for m in st.session_state.chat_history
+                ]
+
+                resp = req.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={
+                        "x-api-key": st.secrets["ANTHROPIC_API_KEY"],
+                        "anthropic-version": "2023-06-01",
+                        "content-type": "application/json",
+                    },
+                    json={
+                        "model": "claude-sonnet-4-20250514",
+                        "max_tokens": 1000,
+                        "system": system_prompt,
+                        "messages": messages_payload,
+                    },
+                    timeout=30,
+                )
+                resp.raise_for_status()
+                answer = resp.json()["content"][0]["text"]
+            except Exception as e:
+                answer = f"❌ Error memanggil AI: {str(e)}"
+
+        st.markdown(answer)
+        st.session_state.chat_history.append({"role": "assistant", "content": answer})
+
+# Tombol clear chat
+if st.session_state.chat_history:
+    if st.button("🗑️ Clear Chat", use_container_width=False):
+        st.session_state.chat_history = []
+        st.rerun()
 
 # ── FOOTER ────────────────────────────────────────────────────────────────────
 st.markdown("""
