@@ -680,23 +680,9 @@ Threshold Over: >{to_mins(t['thresh_hi'])} min
                 f"avg_ppo={fmt_mins(m['ppo'])}, avg_recv={fmt_mins(m['recv'])}, "
                 f"over={m['ng']} units\n")
 
-    ctx += "\n=== RAW DATA UNIT OVER L/T (NG only) ===\n"
+    ctx += "\n=== RAW DATA UNIT (max 200 baris) ===\n"
     ctx += "Frame No | Model | Dealer | Tanggal | Total | Recv | PPO | SPU In | SPU Comp | Status\n"
-    # Filter hanya NG dulu
-    ng_rows = []
-    for _, row in df_filt.iterrows():
-        try:
-            loc = str(row.get("_loc", "NVDC Cibitung"))
-            total = row.get("L/Time Total", None)
-            if total and str(total) != "nan":
-                p = PARAMS[loc]["Total"]
-                status = classify(float(total), p["avg"], p["std"])
-                if status == "NG":
-                    ng_rows.append(row)
-        except:
-            pass
-    ctx += f"Total unit Over L/T: {len(ng_rows)} unit\n"
-    for row in ng_rows[:50]:
+    for _, row in df_filt.head(200).iterrows():
         try:
             frame   = str(row.get("Frame No.", "-"))
             model   = str(row.get("Model", "-"))
@@ -730,8 +716,64 @@ for msg in st.session_state.chat_history:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# Chat input
-if prompt := st.chat_input("Tanya sesuatu... contoh: 'model mana paling banyak Over L/T?' atau 'analisis proses PPO'"):
+# ── CHATBOT ───────────────────────────────────────────────────────────────────
+st.markdown('<div class="section-title">🤖 Tanya Data Dashboard</div>', unsafe_allow_html=True)
+
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
+def build_data_context(stats, sel_loc, sel_month, sel_date):
+    ctx = f"""
+Kamu adalah asisten analisis data untuk NLO1 Dept - Toyota Astra Motor.
+Jawab dalam Bahasa Indonesia, singkat, berbasis data, dan fokus ke aksi TL.
+
+FILTER:
+- Lokasi: {sel_loc}
+- Bulan: {sel_month}
+- Tanggal: {sel_date}
+- Total Units: {stats['total_units']}
+- Over L/T: {stats['ng_units']}
+
+TOTAL:
+"""
+    t = stats["processes"].get("Total")
+    if t:
+        ctx += f"""
+Achievement: {t['achieved']}%
+FAST: {t['fast']} | NORMAL: {t['normal']} | NG: {t['ng']}
+Avg: {fmt_mins(t['actual_avg'])} (Param {fmt_mins(t['param_avg'])})
+Std Dev: ±{to_mins(t['actual_std'])} min (Param ±{to_mins(t['param_std'])})
+"""
+
+    ctx += "\nPROSES:\n"
+    for pname in ["Receiving","PPO","SPU In","SPU Comp"]:
+        p = stats["processes"].get(pname)
+        if p:
+            ctx += (
+                f"- {pname}: {p['achieved']}%, "
+                f"avg {fmt_mins(p['actual_avg'])}, "
+                f"NG {p['ng']} unit\n"
+            )
+
+    ctx += "\nMODEL BERMASALAH:\n"
+    for m in stats["models"]:
+        if m["ng"] and m["ng"] > 0:
+            ctx += (
+                f"- {m['name']}: {m['ng']} NG, "
+                f"ach {m['achieved']}%, "
+                f"avg {fmt_mins(m['total'])}\n"
+            )
+
+    ctx += "\nBerikan jawaban format: JAWABAN → DATA → AKSI."
+    return ctx.strip()
+
+# tampilkan history
+for msg in st.session_state.chat_history:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+
+# input chat
+if prompt := st.chat_input("Tanya data… contoh: 'kenapa SPU In bottleneck?'"):
     st.session_state.chat_history.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -739,41 +781,48 @@ if prompt := st.chat_input("Tanya sesuatu... contoh: 'model mana paling banyak O
     with st.chat_message("assistant"):
         with st.spinner("Menganalisis data..."):
             try:
-                import requests as req
+                import requests
 
-                system_prompt = build_data_context(stats, sel_loc, sel_month, sel_date, df_filt)
-                messages_payload = [
-                    {"role": m["role"], "content": m["content"]}
-                    for m in st.session_state.chat_history
-                ]
+                system_prompt = build_data_context(stats, sel_loc, sel_month, sel_date)
+                messages = (
+                    [{"role": "system", "content": system_prompt}]
+                    + st.session_state.chat_history[-6:]
+                )
 
-                gemini_key = st.secrets.get("GEMINI_API_KEY", st.secrets.get("gemini_api_key", ""))
-                # Buat context ringkas - hanya kirim stats + NG units
-                short_ctx = system_prompt[:4000] if len(system_prompt) > 4000 else system_prompt
-                resp = req.post(
-                    f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key={gemini_key}",
-                    headers={"Content-Type": "application/json"},
-                    json={
-                        "contents": [{"role": "user", "parts": [{"text": short_ctx + "\n\nPertanyaan: " + prompt}]}],
-                        "generationConfig": {"maxOutputTokens": 800},
+                resp = requests.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {os.environ.get('GROQ_API_KEY', st.secrets.get('GROQ_API_KEY', ''))}",
+                        "Content-Type": "application/json",
                     },
-                    timeout=30,
+                    json={
+                        "model": "mixtral-8x7b-32768",  # ✅ MISTRAL
+                        "temperature": 0.2,
+                        "max_tokens": 600,
+                        "messages": messages,
+                    },
+                    timeout=25,
                 )
                 resp.raise_for_status()
-                answer = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-            except Exception as e:
-                try:
-                    err_detail = resp.json()
-                except:
-                    err_detail = "no detail"
-                answer = f"❌ Error: {str(e)} | Detail: {err_detail}"
+                answer = resp.json()["choices"][0]["message"]["content"]
+
+            except Exception:
+                # ✅ SAFE FALLBACK (tidak expose error teknis)
+                answer = (
+                    "⚠️ AI sementara tidak tersedia.\n\n"
+                    "Ringkasan cepat untuk TL:\n"
+                    f"- Achievement Total: {t_proc['achieved']}%\n"
+                    "- Bottleneck utama: SPU In\n"
+                    f"- Over L/T: {stats['ng_units']} unit\n\n"
+                    "Silakan cek **Key Findings & Action Points**."
+                )
 
         st.markdown(answer)
         st.session_state.chat_history.append({"role": "assistant", "content": answer})
 
-# Tombol clear chat
+# clear
 if st.session_state.chat_history:
-    if st.button("🗑️ Clear Chat", use_container_width=False):
+    if st.button("🗑️ Clear Chat"):
         st.session_state.chat_history = []
         st.rerun()
 
