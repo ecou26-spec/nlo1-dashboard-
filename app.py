@@ -712,7 +712,7 @@ if prompt := st.chat_input("Tanya sesuatu... contoh: 'model mana paling banyak O
                         "content-type": "application/json",
                     },
                     json={
-                        "model": "model": "claude-opus-4-5",
+                        "model": "claude-opus-4-5",
                         "max_tokens": 1000,
                         "system": system_prompt,
                         "messages": messages_payload,
