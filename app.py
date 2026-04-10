@@ -747,21 +747,18 @@ if prompt := st.chat_input("Tanya sesuatu... contoh: 'model mana paling banyak O
                     for m in st.session_state.chat_history
                 ]
 
+                gemini_key = st.secrets.get("GEMINI_API_KEY", st.secrets.get("gemini_api_key", ""))
                 resp = req.post(
-                    "https://api.groq.com/openai/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {st.secrets.get('groq_api_key', st.secrets.get('GROQ_API_KEY', os.environ.get('GROQ_API_KEY', '')))}",
-                        "Content-Type": "application/json",
-                    },
+                    f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}",
+                    headers={"Content-Type": "application/json"},
                     json={
-                        "model": "llama3-groq-8b-8192-tool-use-preview",
-                        "max_tokens": 1000,
-                        "messages": [{"role": "system", "content": system_prompt}] + messages_payload,
+                        "contents": [{"role": "user", "parts": [{"text": system_prompt + "\n\nPertanyaan: " + prompt}]}],
+                        "generationConfig": {"maxOutputTokens": 1000},
                     },
                     timeout=30,
                 )
                 resp.raise_for_status()
-                answer = resp.json()["choices"][0]["message"]["content"]
+                answer = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
             except Exception as e:
                 try:
                     err_detail = resp.json()
