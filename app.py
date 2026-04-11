@@ -155,9 +155,25 @@ def load_from_sheets():
         return None, str(e)
 
 # ── COMPUTE ───────────────────────────────────────────────────────────────────
+def parse_date_flexible(val):
+    if pd.isna(val) or str(val).strip() == "": return pd.NaT
+    s = str(val).strip()[:10]
+    for fmt in ["%m/%d/%Y","%d/%m/%Y","%Y-%m-%d","%m/%d/%y","%d/%m/%y","%d-%m-%Y","%Y/%m/%d"]:
+        try:
+            dt = datetime.strptime(s, fmt)
+            if 2020 <= dt.year <= 2030:
+                return dt
+        except: continue
+    try:
+        dt = pd.to_datetime(val, dayfirst=False)
+        if 2020 <= dt.year <= 2030: return dt
+    except: pass
+    return pd.NaT
+
 def prepare_df(df):
     df.columns = df.columns.str.strip().str.replace('\ufeff', '', regex=False)
-    df["_date"]  = pd.to_datetime(df["PDIcomp. Date"], errors="coerce", dayfirst=False).dt.strftime("%Y-%m-%d")
+    df["_date"]  = df["PDIcomp. Date"].apply(parse_date_flexible)
+    df["_date"]  = pd.to_datetime(df["_date"], errors="coerce").dt.strftime("%Y-%m-%d")
     df["_month"] = df["_date"].str[:7]
     df["_loc"]   = df["Model"].apply(get_loc)
     return df.dropna(subset=["_date"])
