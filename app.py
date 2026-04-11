@@ -265,8 +265,8 @@ st.markdown("""
 <style>
 [data-testid="stAppViewContainer"]{background:#060a12;color:#e0e8ff}
 [data-testid="stHeader"]{background:transparent}
-.block-container{padding:1rem 2rem;max-width:1200px;margin-right:320px}
-#chat-panel{position:fixed;top:60px;right:0;width:300px;height:calc(100vh - 60px);
+.block-container{padding:1rem 2rem;max-width:1200px;margin-right:240px}
+#chat-panel{position:fixed;top:60px;right:0;width:220px;height:calc(100vh - 60px);
   background:#0a1020;border-left:1px solid rgba(100,160,255,.2);
   display:flex;flex-direction:column;z-index:999;padding:12px}
 #chat-messages{flex:1;overflow-y:auto;margin-bottom:8px;padding-right:4px}
@@ -696,36 +696,37 @@ for msg in st.session_state.chat_history:
 
 st.markdown(f"""
 <div id='chat-panel'>
-  <div style='font-size:.72rem;font-weight:700;color:#7fb3ff;letter-spacing:.06em;
-  border-bottom:1px solid rgba(100,160,255,.15);padding-bottom:6px;margin-bottom:8px'>
-  🤖 AI ASSISTANT</div>
-  <div id='chat-messages'>{chat_msgs_html}</div>
-  <div style='font-size:.55rem;color:#3a4a6a;text-align:center;padding-top:4px'>
-  Powered by Cloudflare AI · Gratis</div>
+  <div style='font-size:.68rem;font-weight:700;color:#7fb3ff;letter-spacing:.06em;
+  border-bottom:1px solid rgba(100,160,255,.15);padding-bottom:5px;margin-bottom:6px;
+  display:flex;justify-content:space-between;align-items:center'>
+  🤖 AI ASSISTANT
+  </div>
+  <div id='chat-messages'>{chat_msgs_html if chat_msgs_html else "<div style=\'color:#3a4a6a;font-size:.58rem;text-align:center;margin-top:20px\'>Tanya sesuatu tentang data...</div>"}</div>
+  <div style='font-size:.5rem;color:#3a4a6a;text-align:center;padding-top:4px'>
+  Cloudflare AI · Gratis</div>
 </div>
 """, unsafe_allow_html=True)
 
-# Chat input via Streamlit (di bawah dashboard)
-st.markdown('<div class="section-title">🤖 Tanya AI</div>', unsafe_allow_html=True)
-input_col, btn_col, clr_col = st.columns([5, 1, 1])
-with input_col:
-    user_input = st.text_input("", placeholder="Tanya data dashboard...", label_visibility="collapsed", key="chat_input_box")
-with btn_col:
-    send = st.button("Kirim", use_container_width=True)
-with clr_col:
-    if st.button("🗑️", use_container_width=True):
-        st.session_state.chat_history = []
+# Chat input di sidebar kanan atas (pakai st.sidebar bawah atau kolom kecil)
+with st.sidebar:
+    st.markdown("### 🤖 Tanya AI")
+    user_input = st.text_area("", placeholder="Tanya data dashboard...", label_visibility="collapsed", key="chat_input_box", height=80)
+    send_c, clr_c = st.columns([2,1])
+    with send_c:
+        send = st.button("Kirim ➤", use_container_width=True, key="chat_send")
+    with clr_c:
+        if st.button("🗑️", use_container_width=True, key="chat_clear"):
+            st.session_state.chat_history = []
+            st.rerun()
+    if send and user_input.strip():
+        st.session_state.chat_history.append({"role": "user", "content": user_input})
+        with st.spinner("..."):
+            try:
+                answer = ask_ai(user_input, stats, sel_loc, sel_month, sel_date, df_filt)
+            except Exception as e:
+                answer = f"❌ Error: {str(e)}"
+        st.session_state.chat_history.append({"role": "assistant", "content": answer})
         st.rerun()
-
-if send and user_input.strip():
-    st.session_state.chat_history.append({"role": "user", "content": user_input})
-    with st.spinner("AI sedang menganalisis..."):
-        try:
-            answer = ask_ai(user_input, stats, sel_loc, sel_month, sel_date, df_filt)
-        except Exception as e:
-            answer = f"❌ Error: {str(e)}"
-    st.session_state.chat_history.append({"role": "assistant", "content": answer})
-    st.rerun()
 
 # ── FOOTER ────────────────────────────────────────────────────────────────────
 st.markdown("""
