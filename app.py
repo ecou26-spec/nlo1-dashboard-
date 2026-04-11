@@ -757,7 +757,7 @@ if prompt := st.chat_input("Tanya sesuatu... contoh: 'model mana paling banyak O
                         "HTTP-Referer": "https://nlo1-dashboard.streamlit.app",
                     },
                     json={
-                        "model": "meta-llama/llama-3.1-8b-instruct:free",
+                        "model": "meta-llama/llama-3.2-3b-instruct:free",
                         "max_tokens": 800,
                         "messages": [
                             {"role": "system", "content": short_ctx},
