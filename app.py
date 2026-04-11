@@ -637,93 +637,24 @@ if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
 def build_data_context(stats, sel_loc, sel_month, sel_date, df_filt):
-    ctx = f"""Kamu adalah asisten analisis data untuk NLO1 Dept - Toyota Astra Motor.
-Jawab dalam Bahasa Indonesia, singkat dan langsung ke poin. Gunakan data berikut untuk menjawab pertanyaan.
-
-=== FILTER AKTIF ===
-Lokasi: {sel_loc}
-Bulan: {sel_month}
-Tanggal: {sel_date}
-Total Units: {stats['total_units']}
-Jumlah Model: {stats['models_count']}
-Over L/T: {stats['ng_units']}
-"""
     t = stats["processes"].get("Total")
+    lines = [
+        f"Kamu adalah asisten analisis data NLO1 Dept - Toyota Astra Motor. Jawab Bahasa Indonesia, singkat.",
+        f"Filter: {sel_loc} | {sel_month} | {sel_date}",
+        f"Units: {stats['total_units']} | Models: {stats['models_count']} | Over L/T: {stats['ng_units']}",
+    ]
     if t:
-        ctx += f"""
-=== TOTAL L/T ===
-Achievement: {t['achieved']}%
-FAST: {t['fast']} units ({t['pct_fast']}%)
-NORMAL: {t['normal']} units ({t['pct_normal']}%)
-Over L/T (NG): {t['ng']} units ({t['pct_ng']}%)
-Actual Avg: {fmt_mins(t['actual_avg'])}
-Param Avg: {fmt_mins(t['param_avg'])}
-Actual Std Dev: ±{to_mins(t['actual_std'])} min
-Param Std Dev: ±{to_mins(t['param_std'])} min
-Threshold FAST: ≤{to_mins(t['thresh_lo'])} min
-Threshold Over: >{to_mins(t['thresh_hi'])} min
-"""
-    ctx += "\n=== PER PROSES ===\n"
+        lines.append(f"Total Achievement: {t['achieved']}% | FAST:{t['fast']} NORMAL:{t['normal']} NG:{t['ng']}")
+        lines.append(f"Avg actual: {fmt_mins(t['actual_avg'])} | Avg param: {fmt_mins(t['param_avg'])}")
+    lines.append("Per Proses:")
     for pname in ["Receiving", "PPO", "SPU In", "SPU Comp"]:
         p = stats["processes"].get(pname)
         if p:
-            ctx += (f"{pname}: achievement={p['achieved']}%, "
-                    f"actual_avg={fmt_mins(p['actual_avg'])}, "
-                    f"param_avg={fmt_mins(p['param_avg'])}, "
-                    f"actual_std=±{to_mins(p['actual_std'])} min, "
-                    f"over={p['ng']} units ({p['pct_ng']}%)\n")
-
-    ctx += "\n=== PER MODEL ===\n"
+            lines.append(f"  {pname}: {p['achieved']}% ach | avg {fmt_mins(p['actual_avg'])} | NG {p['ng']} units")
+    lines.append("Per Model:")
     for m in stats["models"]:
-        ctx += (f"{m['name']}: {m['n']} units, lokasi={m['loc']}, "
-                f"achievement={m['achieved']}%, avg_total={fmt_mins(m['total'])}, "
-                f"avg_ppo={fmt_mins(m['ppo'])}, avg_recv={fmt_mins(m['recv'])}, "
-                f"over={m['ng']} units\n")
-
-    ctx += "\n=== RAW DATA UNIT OVER L/T (NG only) ===\n"
-    ctx += "Frame No | Model | Dealer | Tanggal | Total | Recv | PPO | SPU In | SPU Comp | Status\n"
-    # Filter hanya NG dulu
-    ng_rows = []
-    for _, row in df_filt.iterrows():
-        try:
-            loc = str(row.get("_loc", "NVDC Cibitung"))
-            total = row.get("L/Time Total", None)
-            if total and str(total) != "nan":
-                p = PARAMS[loc]["Total"]
-                status = classify(float(total), p["avg"], p["std"])
-                if status == "NG":
-                    ng_rows.append(row)
-        except:
-            pass
-    ctx += f"Total unit Over L/T: {len(ng_rows)} unit\n"
-    for row in ng_rows[:50]:
-        try:
-            frame   = str(row.get("Frame No.", "-"))
-            model   = str(row.get("Model", "-"))
-            dealer  = str(row.get("Dealer", "-"))
-            date    = str(row.get("_date", "-"))
-            loc     = str(row.get("_loc", "NVDC Cibitung"))
-            total   = row.get("L/Time Total", None)
-            recv    = row.get("L/T PDI-PPOin", None)
-            ppo     = row.get("L/T PPOIn-PPOcomp", None)
-            spuin   = row.get("L/T PPO_SPUin", None)
-            spucomp = row.get("L/T SPUin _SPUcomp", None)
-            try:
-                p = PARAMS[loc]["Total"]
-                status = classify(float(total), p["avg"], p["std"]) if total and str(total) != "nan" else "-"
-            except:
-                status = "-"
-            ctx += (f"{frame} | {model} | {dealer} | {date} | "
-                    f"{fmt_mins(float(total)) if total and str(total) != 'nan' else '-'} | "
-                    f"{fmt_mins(float(recv)) if recv and str(recv) != 'nan' else '-'} | "
-                    f"{fmt_mins(float(ppo)) if ppo and str(ppo) != 'nan' else '-'} | "
-                    f"{fmt_mins(float(spuin)) if spuin and str(spuin) != 'nan' else '-'} | "
-                    f"{fmt_mins(float(spucomp)) if spucomp and str(spucomp) != 'nan' else '-'} | "
-                    f"{status}\n")
-        except:
-            pass
-
-    return ctx
+        lines.append(f"  {m['name']}: {m['n']} unit | ach {m['achieved']}% | avg {fmt_mins(m['total'])} | NG {m['ng']}")
+    return "\n".join(lines)
 
 # Tampilkan chat history
 for msg in st.session_state.chat_history:
@@ -748,7 +679,7 @@ if prompt := st.chat_input("Tanya sesuatu... contoh: 'model mana paling banyak O
                 ]
 
                 or_key = st.secrets.get("OPENROUTER_API_KEY", st.secrets.get("openrouter_api_key", ""))
-                short_ctx = system_prompt[:4000] if len(system_prompt) > 4000 else system_prompt
+                short_ctx = system_prompt[:2000] if len(system_prompt) > 2000 else system_prompt
                 resp = req.post(
                     "https://openrouter.ai/api/v1/chat/completions",
                     headers={
@@ -757,7 +688,7 @@ if prompt := st.chat_input("Tanya sesuatu... contoh: 'model mana paling banyak O
                         "HTTP-Referer": "https://nlo1-dashboard.streamlit.app",
                     },
                     json={
-                        "model": "meta-llama/llama-3.2-3b-instruct:free",
+                        "model": "google/gemma-3-4b-it:free",
                         "max_tokens": 800,
                         "messages": [
                             {"role": "system", "content": short_ctx},
