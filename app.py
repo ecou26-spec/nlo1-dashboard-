@@ -678,27 +678,25 @@ if prompt := st.chat_input("Tanya sesuatu... contoh: 'model mana paling banyak O
                     for m in st.session_state.chat_history
                 ]
 
-                or_key = st.secrets.get("OPENROUTER_API_KEY", st.secrets.get("openrouter_api_key", ""))
-                short_ctx = system_prompt[:2000] if len(system_prompt) > 2000 else system_prompt
+                cf_account = st.secrets.get("CF_ACCOUNT_ID", st.secrets.get("cf_account_id", ""))
+                cf_token = st.secrets.get("CF_API_TOKEN", st.secrets.get("cf_api_token", ""))
                 resp = req.post(
-                    "https://openrouter.ai/api/v1/chat/completions",
+                    f"https://api.cloudflare.com/client/v4/accounts/{cf_account}/ai/run/@cf/meta/llama-3.1-8b-instruct",
                     headers={
-                        "Authorization": f"Bearer {or_key}",
+                        "Authorization": f"Bearer {cf_token}",
                         "Content-Type": "application/json",
-                        "HTTP-Referer": "https://nlo1-dashboard.streamlit.app",
                     },
                     json={
-                        "model": "google/gemma-3-4b-it:free",
-                        "max_tokens": 800,
                         "messages": [
-                            {"role": "system", "content": short_ctx},
+                            {"role": "system", "content": system_prompt},
                             {"role": "user", "content": prompt}
                         ],
+                        "max_tokens": 800,
                     },
                     timeout=30,
                 )
                 resp.raise_for_status()
-                answer = resp.json()["choices"][0]["message"]["content"]
+                answer = resp.json()["result"]["response"]
             except Exception as e:
                 try:
                     err_detail = resp.json()
