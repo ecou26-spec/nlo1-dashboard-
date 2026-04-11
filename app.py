@@ -265,7 +265,13 @@ st.markdown("""
 <style>
 [data-testid="stAppViewContainer"]{background:#060a12;color:#e0e8ff}
 [data-testid="stHeader"]{background:transparent}
-.block-container{padding:1rem 2rem;max-width:1400px}
+.block-container{padding:1rem 2rem;max-width:1200px;margin-right:320px}
+#chat-panel{position:fixed;top:60px;right:0;width:300px;height:calc(100vh - 60px);
+  background:#0a1020;border-left:1px solid rgba(100,160,255,.2);
+  display:flex;flex-direction:column;z-index:999;padding:12px}
+#chat-messages{flex:1;overflow-y:auto;margin-bottom:8px;padding-right:4px}
+#chat-messages::-webkit-scrollbar{width:3px}
+#chat-messages::-webkit-scrollbar-thumb{background:#1e3a6e;border-radius:3px}
 .kpi-box{background:linear-gradient(135deg,#0d1526,#111d35);border:1px solid rgba(100,160,255,.15);
   border-radius:12px;padding:16px 20px;text-align:center}
 .kpi-n{font-size:2rem;font-weight:800;font-family:monospace}
@@ -630,16 +636,14 @@ with right_col:
         )
         st.markdown(card_html, unsafe_allow_html=True)
 
-# ── CHATBOT ───────────────────────────────────────────────────────────────────
-st.markdown('<div class="section-title">🤖 Tanya Data Dashboard</div>', unsafe_allow_html=True)
-
+# ── MAIN LAYOUT: DASHBOARD (kiri) + CHATBOT (kanan) ─────────────────────────
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
 def build_data_context(stats, sel_loc, sel_month, sel_date, df_filt):
     t = stats["processes"].get("Total")
     lines = [
-        f"Kamu adalah asisten analisis data NLO1 Dept - Toyota Astra Motor. Jawab Bahasa Indonesia, singkat.",
+        "Kamu adalah asisten analisis data NLO1 Dept - Toyota Astra Motor. Jawab Bahasa Indonesia, singkat.",
         f"Filter: {sel_loc} | {sel_month} | {sel_date}",
         f"Units: {stats['total_units']} | Models: {stats['models_count']} | Over L/T: {stats['ng_units']}",
     ]
@@ -656,62 +660,72 @@ def build_data_context(stats, sel_loc, sel_month, sel_date, df_filt):
         lines.append(f"  {m['name']}: {m['n']} unit | ach {m['achieved']}% | avg {fmt_mins(m['total'])} | NG {m['ng']}")
     return "\n".join(lines)
 
-# Tampilkan chat history
+def ask_ai(prompt, stats, sel_loc, sel_month, sel_date, df_filt):
+    import requests as req
+    system_prompt = build_data_context(stats, sel_loc, sel_month, sel_date, df_filt)
+    cf_account = st.secrets.get("CF_ACCOUNT_ID", st.secrets.get("cf_account_id", ""))
+    cf_token   = st.secrets.get("CF_API_TOKEN",  st.secrets.get("cf_api_token",  ""))
+    resp = req.post(
+        f"https://api.cloudflare.com/client/v4/accounts/{cf_account}/ai/run/@cf/meta/llama-3.1-8b-instruct",
+        headers={"Authorization": f"Bearer {cf_token}", "Content-Type": "application/json"},
+        json={
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user",   "content": prompt}
+            ],
+            "max_tokens": 600,
+        },
+        timeout=40,
+    )
+    resp.raise_for_status()
+    return resp.json()["result"]["response"]
+
+# ── CHATBOT PANEL (fixed right) ──────────────────────────────────────────────
+# Build chat messages HTML
+chat_msgs_html = ""
 for msg in st.session_state.chat_history:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+    is_user = msg["role"] == "user"
+    bg      = "rgba(61,155,255,.2)" if is_user else "rgba(160,102,255,.15)"
+    align   = "flex-end" if is_user else "flex-start"
+    icon    = "👤" if is_user else "🤖"
+    chat_msgs_html += f"""
+    <div style='display:flex;justify-content:{align};margin-bottom:6px'>
+    <div style='background:{bg};border-radius:8px;padding:6px 10px;
+    font-size:.6rem;color:#e0e8ff;max-width:90%;line-height:1.5'>
+    {icon} {msg["content"]}</div></div>"""
 
-# Chat input
-if prompt := st.chat_input("Tanya sesuatu... contoh: 'model mana paling banyak Over L/T?' atau 'analisis proses PPO'"):
-    st.session_state.chat_history.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+st.markdown(f"""
+<div id='chat-panel'>
+  <div style='font-size:.72rem;font-weight:700;color:#7fb3ff;letter-spacing:.06em;
+  border-bottom:1px solid rgba(100,160,255,.15);padding-bottom:6px;margin-bottom:8px'>
+  🤖 AI ASSISTANT</div>
+  <div id='chat-messages'>{chat_msgs_html}</div>
+  <div style='font-size:.55rem;color:#3a4a6a;text-align:center;padding-top:4px'>
+  Powered by Cloudflare AI · Gratis</div>
+</div>
+""", unsafe_allow_html=True)
 
-    with st.chat_message("assistant"):
-        with st.spinner("Menganalisis data..."):
-            try:
-                import requests as req
-
-                system_prompt = build_data_context(stats, sel_loc, sel_month, sel_date, df_filt)
-                messages_payload = [
-                    {"role": m["role"], "content": m["content"]}
-                    for m in st.session_state.chat_history
-                ]
-
-                cf_account = st.secrets.get("CF_ACCOUNT_ID", st.secrets.get("cf_account_id", ""))
-                cf_token = st.secrets.get("CF_API_TOKEN", st.secrets.get("cf_api_token", ""))
-                resp = req.post(
-                    f"https://api.cloudflare.com/client/v4/accounts/{cf_account}/ai/run/@cf/meta/llama-3.1-8b-instruct",
-                    headers={
-                        "Authorization": f"Bearer {cf_token}",
-                        "Content-Type": "application/json",
-                    },
-                    json={
-                        "messages": [
-                            {"role": "system", "content": system_prompt},
-                            {"role": "user", "content": prompt}
-                        ],
-                        "max_tokens": 800,
-                    },
-                    timeout=30,
-                )
-                resp.raise_for_status()
-                answer = resp.json()["result"]["response"]
-            except Exception as e:
-                try:
-                    err_detail = resp.json()
-                except:
-                    err_detail = "no detail"
-                answer = f"❌ Error: {str(e)} | Detail: {err_detail}"
-
-        st.markdown(answer)
-        st.session_state.chat_history.append({"role": "assistant", "content": answer})
-
-# Tombol clear chat
-if st.session_state.chat_history:
-    if st.button("🗑️ Clear Chat", use_container_width=False):
+# Chat input via Streamlit (di bawah dashboard)
+st.markdown('<div class="section-title">🤖 Tanya AI</div>', unsafe_allow_html=True)
+input_col, btn_col, clr_col = st.columns([5, 1, 1])
+with input_col:
+    user_input = st.text_input("", placeholder="Tanya data dashboard...", label_visibility="collapsed", key="chat_input_box")
+with btn_col:
+    send = st.button("Kirim", use_container_width=True)
+with clr_col:
+    if st.button("🗑️", use_container_width=True):
         st.session_state.chat_history = []
         st.rerun()
+
+if send and user_input.strip():
+    st.session_state.chat_history.append({"role": "user", "content": user_input})
+    with st.spinner("AI sedang menganalisis..."):
+        try:
+            answer = ask_ai(user_input, stats, sel_loc, sel_month, sel_date, df_filt)
+        except Exception as e:
+            answer = f"❌ Error: {str(e)}"
+    st.session_state.chat_history.append({"role": "assistant", "content": answer})
+    st.rerun()
 
 # ── FOOTER ────────────────────────────────────────────────────────────────────
 st.markdown("""
