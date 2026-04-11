@@ -662,23 +662,35 @@ def build_data_context(stats, sel_loc, sel_month, sel_date, df_filt):
 
 def ask_ai(prompt, stats, sel_loc, sel_month, sel_date, df_filt):
     import requests as req
+    import time
     system_prompt = build_data_context(stats, sel_loc, sel_month, sel_date, df_filt)
     cf_account = st.secrets.get("CF_ACCOUNT_ID", st.secrets.get("cf_account_id", ""))
     cf_token   = st.secrets.get("CF_API_TOKEN",  st.secrets.get("cf_api_token",  ""))
-    resp = req.post(
-        f"https://api.cloudflare.com/client/v4/accounts/{cf_account}/ai/run/@cf/meta/llama-3.1-8b-instruct",
-        headers={"Authorization": f"Bearer {cf_token}", "Content-Type": "application/json"},
-        json={
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user",   "content": prompt}
-            ],
-            "max_tokens": 600,
-        },
-        timeout=40,
-    )
-    resp.raise_for_status()
-    return resp.json()["result"]["response"]
+    for attempt in range(3):
+        try:
+            resp = req.post(
+                f"https://api.cloudflare.com/client/v4/accounts/{cf_account}/ai/run/@cf/meta/llama-3.1-8b-instruct",
+                headers={"Authorization": f"Bearer {cf_token}", "Content-Type": "application/json"},
+                json={
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user",   "content": prompt}
+                    ],
+                    "max_tokens": 600,
+                },
+                timeout=40,
+            )
+            if resp.status_code == 429:
+                wait = (attempt + 1) * 5
+                time.sleep(wait)
+                continue
+            resp.raise_for_status()
+            return resp.json()["result"]["response"]
+        except Exception as e:
+            if attempt == 2:
+                raise e
+            time.sleep(5)
+    return "❌ Gagal setelah 3 percobaan. Coba lagi beberapa saat."
 
 # ── CHATBOT PANEL (fixed right) ──────────────────────────────────────────────
 # Build chat messages HTML
