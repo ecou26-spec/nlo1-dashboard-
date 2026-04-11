@@ -697,30 +697,29 @@ for msg in st.session_state.chat_history:
 st.markdown(f"""
 <div id='chat-panel'>
   <div style='font-size:.68rem;font-weight:700;color:#7fb3ff;letter-spacing:.06em;
-  border-bottom:1px solid rgba(100,160,255,.15);padding-bottom:5px;margin-bottom:6px;
-  display:flex;justify-content:space-between;align-items:center'>
-  🤖 AI ASSISTANT
-  </div>
-  <div id='chat-messages'>{chat_msgs_html if chat_msgs_html else "<div style=\'color:#3a4a6a;font-size:.58rem;text-align:center;margin-top:20px\'>Tanya sesuatu tentang data...</div>"}</div>
-  <div style='font-size:.5rem;color:#3a4a6a;text-align:center;padding-top:4px'>
-  Cloudflare AI · Gratis</div>
+  border-bottom:1px solid rgba(100,160,255,.15);padding-bottom:5px;margin-bottom:6px'>
+  🤖 AI ASSISTANT</div>
+  <div id='chat-messages'>{chat_msgs_html if chat_msgs_html else "<div style=\'color:#3a4a6a;font-size:.58rem;text-align:center;margin-top:40px\'>Tanya sesuatu tentang data dashboard...</div>"}</div>
+  <div style='font-size:.5rem;color:#3a4a6a;text-align:center;padding-top:4px'>Cloudflare AI · Gratis</div>
 </div>
 """, unsafe_allow_html=True)
 
-# Chat input di sidebar kanan atas (pakai st.sidebar bawah atau kolom kecil)
-with st.sidebar:
-    st.markdown("### 🤖 Tanya AI")
-    user_input = st.text_area("", placeholder="Tanya data dashboard...", label_visibility="collapsed", key="chat_input_box", height=80)
-    send_c, clr_c = st.columns([2,1])
-    with send_c:
-        send = st.button("Kirim ➤", use_container_width=True, key="chat_send")
-    with clr_c:
-        if st.button("🗑️", use_container_width=True, key="chat_clear"):
-            st.session_state.chat_history = []
-            st.rerun()
-    if send and user_input.strip():
+# ── CHAT INPUT (compact, di bawah dashboard) ──────────────────────────────────
+st.markdown("---")
+c_in, c_btn, c_clr = st.columns([6, 1, 1])
+with c_in:
+    user_input = st.text_input("", placeholder="🤖 Tanya AI tentang data...", label_visibility="collapsed", key="chat_input_box")
+with c_btn:
+    send = st.button("➤", use_container_width=True, key="chat_send")
+with c_clr:
+    if st.button("🗑️", use_container_width=True, key="chat_clear"):
+        st.session_state.chat_history = []
+        st.rerun()
+
+if (send or user_input) and user_input.strip():
+    if send:
         st.session_state.chat_history.append({"role": "user", "content": user_input})
-        with st.spinner("..."):
+        with st.spinner("AI menganalisis..."):
             try:
                 answer = ask_ai(user_input, stats, sel_loc, sel_month, sel_date, df_filt)
             except Exception as e:
