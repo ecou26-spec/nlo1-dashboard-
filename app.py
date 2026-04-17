@@ -368,7 +368,7 @@ with col_day:
     def day_label(d):
         if d == "ALL": return "📅 All"
         dt = datetime.strptime(d, "%Y-%m-%d")
-        days = ["Su","Mo","Tu","We","Th","Fr","Sa"]
+        days = ["Mo","Tu","We","Th","Fr","Sa","Su"]
         return f"{dt.day} {days[dt.weekday()]}"
     sel_date = st.radio("Tanggal", day_opts, format_func=day_label,
                         horizontal=True, label_visibility="collapsed")
