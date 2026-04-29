@@ -71,8 +71,8 @@ PARAMS = {
     },
 
     "NVDC Sunter": {
-        "Receiving": {"avg": 4.0,   "std": 1.00},
-        "PPO":       {"avg": 1.25,  "std": 0.31},
+        "Receiving": {"avg": 4.5,   "std": 1.12},
+        "PPO":       {"avg": 1.50,  "std": 0.38},
         "SPU In":    {"avg": 1.0,   "std": 0.25},
         "SPU Comp":  {"avg": 0.75,  "std": 0.19},
         "Total":     {"avg": 7.0,   "std": 1.75},
