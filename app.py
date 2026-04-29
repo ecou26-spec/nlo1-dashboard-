@@ -55,11 +55,11 @@ PARAMS = {
     },
 
     "ALL": {
-        "Receiving": {"avg": 1.54,  "std": 0.39},
+        "Receiving": {"avg": 1.74,  "std": 0.49},
         "PPO":       {"avg": 2.86,  "std": 0.72},
         "SPU In":    {"avg": 1.01,  "std": 0.25},
         "SPU Comp":  {"avg": 0.80,  "std": 0.20},
-        "Total":     {"avg": 6.26,  "std": 1.57},
+        "Total":     {"avg": 6.46,  "std": 1.67},
     },
 
     "NVDC Cibitung": {
@@ -71,11 +71,11 @@ PARAMS = {
     },
 
     "NVDC Sunter": {
-        "Receiving": {"avg": 4.5,   "std": 1.12},
+        "Receiving": {"avg": 5.0,   "std": 1.25},
         "PPO":       {"avg": 1.50,  "std": 0.38},
         "SPU In":    {"avg": 1.0,   "std": 0.25},
         "SPU Comp":  {"avg": 0.75,  "std": 0.19},
-        "Total":     {"avg": 7.75,   "std": 1.93},
+        "Total":     {"avg": 8.25,   "std": 2.06},
     },
 
     "NVDC Sunter Lexus": {
