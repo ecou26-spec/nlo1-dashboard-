@@ -75,7 +75,7 @@ PARAMS = {
         "PPO":       {"avg": 1.50,  "std": 0.38},
         "SPU In":    {"avg": 1.0,   "std": 0.25},
         "SPU Comp":  {"avg": 0.75,  "std": 0.19},
-        "Total":     {"avg": 7.0,   "std": 1.75},
+        "Total":     {"avg": 7.75,   "std": 1.93},
     },
 
     "NVDC Sunter Lexus": {
