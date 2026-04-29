@@ -72,10 +72,10 @@ PARAMS = {
 
     "NVDC Sunter": {
         "Receiving": {"avg": 5.0,   "std": 1.25},
-        "PPO":       {"avg": 1.50,  "std": 0.38},
+        "PPO":       {"avg": 1.75,  "std": 0.43},
         "SPU In":    {"avg": 1.0,   "std": 0.25},
         "SPU Comp":  {"avg": 0.75,  "std": 0.19},
-        "Total":     {"avg": 8.25,   "std": 2.06},
+        "Total":     {"avg": 8.50,   "std": 2.13},
     },
 
     "NVDC Sunter Lexus": {
