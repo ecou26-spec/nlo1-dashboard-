@@ -459,19 +459,19 @@ for i, (pname, color) in enumerate(PROC_COLORS.items()):
           <div style="font-size:1.4rem;font-weight:800;color:{ach_color(p['achieved'])};
             font-family:monospace;margin-bottom:6px">{ach_p:.1f}%</div>
           <div class="stat-row">
-            <span class="stat-l">Actual Avg</span>
+            <span class="stat-l">Actual Lead Time</span>
             <span class="stat-v" style="color:{color}">{fmt_mins(p['actual_avg'])}</span>
           </div>
           <div class="stat-row">
-            <span class="stat-l">Param Avg</span>
+            <span class="stat-l">Target Lead Time</span>
             <span class="stat-v" style="color:#7a90bb">{fmt_mins(p['param_avg'])}</span>
           </div>
           <div class="stat-row">
-            <span class="stat-l">Actual Std</span>
+            <span class="stat-l">Actual Variation</span>
             <span class="stat-v" style="color:{color}">±{to_mins(p['actual_std'])} min</span>
           </div>
           <div class="stat-row">
-            <span class="stat-l">Param Std</span>
+            <span class="stat-l">Standard Variation</span>
             <span class="stat-v" style="color:#7a90bb">±{to_mins(p['param_std'])} min</span>
           </div>
           <div style="margin-top:8px;font-size:.55rem;display:flex;justify-content:space-between;color:#7a90bb">
