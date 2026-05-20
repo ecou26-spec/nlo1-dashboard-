@@ -743,7 +743,7 @@ with left_col:
                   <div class='kpi-n' style='font-size:1.4rem;color:#00e5a0'>{ok_all}</div>
                   <div class='kpi-l'>Units FIFO OK</div></div>""", unsafe_allow_html=True)
 
-            st.caption("🟢 ≥95% · 🟡 85–95% · 🔴 <85% | Toleransi 15 menit · Non-FIFO = unit yg keluar PPO lebih dulu padahal masuk PDI belakangan")
+            st.caption("🟢 ≥95% · 🟡 85–95% · 🔴 <85% | Non-FIFO = Out of sequence")
 
 with right_col:
     # Key Findings & Action Points
