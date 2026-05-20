@@ -144,23 +144,69 @@ def load_from_sheets():
         return None, str(e)
 
 # ── COMPUTE ───────────────────────────────────────────────────────────────────
-def parse_mixed_dates(series):
+def detect_day_first(raw_series):
     """
-    Auto-detect D/M/YYYY vs M/D/YYYY by sampling the data:
-    - If any value has first number > 12, it must be day-first (D/M/YYYY)
-    - Otherwise assume M/D/YYYY (US format, original Google Sheets export)
-    - ISO format (YYYY-MM-DD) is always handled correctly regardless.
-    This handles Google Sheets locale changes without needing code updates.
+    Detect whether slash-format dates are D/M/YYYY or M/D/YYYY.
+    Strategy (in order):
+    1. If any first-part > 12  → must be D/M
+    2. If any second-part > 12 → must be M/D
+    3. Cross-check: try both formats, pick the one where
+       all resulting months are valid (1-12) and years are 2020-2030.
+       D/M tends to produce fewer invalid dates when data is D/M.
+    """
+    slash_vals = raw_series[raw_series.str.match(r"^\d{1,2}/\d{1,2}/\d{4}")].head(200)
+    if slash_vals.empty:
+        return False  # no slash dates, doesn't matter
+
+    for v in slash_vals:
+        parts = v.split("/")
+        if len(parts) < 2: continue
+        first  = int(parts[0]) if parts[0].isdigit() else 0
+        second = int(parts[1]) if parts[1].isdigit() else 0
+        if first > 12:  return True   # definitively D/M
+        if second > 12: return False  # definitively M/D
+
+    # Ambiguous: both parts ≤ 12 for all samples
+    # Try both and count how many produce valid dates in range 2020-2030
+    def count_valid(fmts):
+        r = pd.to_datetime(slash_vals, format=fmts[0], errors="coerce")
+        valid = r.dropna()
+        return int(((valid.dt.year >= 2020) & (valid.dt.year <= 2030)).sum())
+
+    score_dm = count_valid(["%d/%m/%Y %H:%M", "%d/%m/%Y"])
+    score_md = count_valid(["%m/%d/%Y %H:%M", "%m/%d/%Y"])
+
+    # If scores equal, check which format produces months matching
+    # the most common ISO month in the dataset (more reliable signal)
+    iso_vals = raw_series[raw_series.str.match(r"^\d{4}-\d{2}-\d{2}")]
+    if not iso_vals.empty and score_dm == score_md:
+        iso_parsed = pd.to_datetime(iso_vals, format="%Y-%m-%d %H:%M:%S", errors="coerce")
+        iso_parsed = iso_parsed.fillna(pd.to_datetime(iso_vals, format="%Y-%m-%d", errors="coerce"))
+        common_month = iso_parsed.dt.month.mode()
+        if not common_month.empty:
+            m = int(common_month.iloc[0])
+            dm = pd.to_datetime(slash_vals, format="%d/%m/%Y", errors="coerce")
+            md = pd.to_datetime(slash_vals, format="%m/%d/%Y", errors="coerce")
+            match_dm = int((dm.dt.month == m).sum())
+            match_md = int((md.dt.month == m).sum())
+            return match_dm >= match_md
+
+    return score_dm > score_md
+
+
+def parse_mixed_dates(series, _day_first_cache={}):
+    """
+    Parse dates robustly — handles D/M/YYYY, M/D/YYYY, and ISO formats.
+    Auto-detects slash format from the full dataset (not just filtered slice)
+    to avoid ambiguity when all visible dates happen to be day ≤ 12.
     """
     raw = series.astype(str).str.strip()
 
-    # Auto-detect: sample slash-separated dates, check if first number > 12
-    slash_vals = raw[raw.str.match(r"^\d{1,2}/\d{1,2}/\d{4}")]
-    day_first = any(
-        int(v.split("/")[0]) > 12
-        for v in slash_vals.head(50)
-        if v.split("/")[0].isdigit()
-    )
+    # Detect on full series (cached per call for performance)
+    cache_key = id(series)
+    if cache_key not in _day_first_cache:
+        _day_first_cache[cache_key] = detect_day_first(raw)
+    day_first = _day_first_cache[cache_key]
 
     if day_first:
         slash_fmts = ["%d/%m/%Y %H:%M", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y"]
@@ -554,14 +600,9 @@ with left_col:
         st.caption("⚠️ Kolom 'PPOin Date' tidak ditemukan. Pastikan nama kolom di Google Sheets sesuai.")
     else:
         def parse_dt_full(series):
-            """Parse full datetime for FIFO — same auto-detect as parse_mixed_dates."""
+            """Parse full datetime for FIFO — reuses detect_day_first for consistency."""
             raw = series.astype(str).str.strip()
-            slash_vals = raw[raw.str.match(r"^\d{1,2}/\d{1,2}/\d{4}")]
-            day_first = any(
-                int(v.split("/")[0]) > 12
-                for v in slash_vals.head(50)
-                if v.split("/")[0].isdigit()
-            )
+            day_first = detect_day_first(raw)
             slash_fmts = (["%d/%m/%Y %H:%M", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y"]
                           if day_first else
                           ["%m/%d/%Y %H:%M", "%m/%d/%Y %H:%M:%S", "%m/%d/%Y"])
