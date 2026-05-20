@@ -371,32 +371,45 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ── SIDEBAR ───────────────────────────────────────────────────────────────────
+# ── LOAD DATA ─────────────────────────────────────────────────────────────────
+# Support both: direct CSV upload (recommended) or Google Sheets
 with st.sidebar:
-    st.markdown("### 🔄 Data Source")
-    st.caption("Data otomatis diambil dari Google Sheets")
+    st.markdown("### 📂 Upload CSV")
+    uploaded_csv = st.file_uploader(
+        "Upload file CSV langsung (recommended — hindari konversi Sheets)",
+        type=["csv"],
+        help="Upload CSV dari sumber asli. Format tanggal ISO akan terbaca sempurna."
+    )
+    st.markdown("### 🔄 Google Sheets")
     st.caption("Auto-refresh setiap 60 detik")
-
     if st.button("🔄 Refresh Data", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
-
     st.markdown("---")
     st.caption("NLO1 Dept · Lead Time Dashboard · 2026")
     if st.button("🚪 Logout", use_container_width=True):
         st.session_state.authenticated = False
         st.rerun()
 
-# ── LOAD DATA ─────────────────────────────────────────────────────────────────
-df_raw, err = load_from_sheets()
+if uploaded_csv is not None:
+    # Direct CSV — tanggal ISO, tidak ada konversi Sheets
+    try:
+        import io
+        df_raw = pd.read_csv(uploaded_csv, encoding="utf-8-sig", encoding_errors="replace")
+        df_raw.columns = df_raw.columns.str.strip().str.replace("\ufeff", "", regex=False)
+        err = None
+        st.sidebar.success(f"✅ CSV loaded: {len(df_raw):,} rows")
+    except Exception as e:
+        df_raw, err = None, str(e)
+else:
+    df_raw, err = load_from_sheets()
 
 if err:
-    st.error(f"❌ Gagal load data dari Google Sheets: {err}")
-    st.info("Pastikan Google Sheets sudah di-setup dengan benar.")
+    st.error(f"❌ Gagal load data: {err}")
     st.stop()
 
 if df_raw is None or df_raw.empty:
-    st.warning("⚠️ Google Sheets kosong. Silakan isi data terlebih dahulu.")
+    st.warning("⚠️ Data kosong. Upload CSV atau pastikan Google Sheets sudah terisi.")
     st.stop()
 
 df = prepare_df(df_raw)
