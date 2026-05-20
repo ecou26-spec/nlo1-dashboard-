@@ -537,9 +537,9 @@ with left_col:
             st.dataframe(pd.DataFrame(daily_rows), use_container_width=True, hide_index=True)
 
     # ── FIFO ANALYSIS ──────────────────────────────────────────────────────────
-    st.markdown('<div class="section-title">🔄 FIFO Analysis — PDIcomp. (In) vs PPOin (Out)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">🔄 FIFO Compliance — PDIcomp. Date (In) vs PPOin Date (Out)</div>', unsafe_allow_html=True)
 
-    # Detect PPOin Date column (handle slight name variations)
+    # Detect PPOin Date column
     ppoin_col = None
     for candidate in ["PPOin Date", "PPOin. Date", "PPO in Date", "PPOIn Date", "PPO In Date"]:
         if candidate in df_filt.columns:
@@ -549,104 +549,135 @@ with left_col:
     if ppoin_col is None:
         st.caption("⚠️ Kolom 'PPOin Date' tidak ditemukan. Pastikan nama kolom di Google Sheets sesuai.")
     else:
-        # Build FIFO dataframe — parse datetime (full timestamp, not just date)
         def parse_dt_full(series):
+            """Parse full datetime including time component for FIFO comparison."""
             raw = series.astype(str).str.strip()
             result = pd.Series([pd.NaT] * len(raw), index=raw.index, dtype="datetime64[ns]")
             for fmt in ["%m/%d/%Y %H:%M", "%m/%d/%Y %H:%M:%S",
                         "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d", "%m/%d/%Y"]:
                 mask = result.isna()
                 if not mask.any(): break
-                attempt = pd.to_datetime(raw[mask], format=fmt, errors="coerce")
-                result[mask] = attempt
+                result[mask] = pd.to_datetime(raw[mask], format=fmt, errors="coerce")
             return result
 
+        def calc_fifo_compliance(df, pdi_col, ppo_col, model_col, tolerance_min=15):
+            """
+            Port of DAX FIFO_Model_% logic.
+            Unit i = NonFIFO jika ada unit j (model sama) dimana:
+              - pdi_j < pdi_i  (j masuk sebelum i)
+              - ppo_j > ppo_i + tolerance  (tapi j keluar setelah i + toleransi)
+            Artinya unit i 'menyalip antrian' dari unit j.
+            """
+            tol = pd.Timedelta(minutes=tolerance_min)
+            non_fifo_flags = []
+            for _, cur in df.iterrows():
+                if pd.isna(cur[pdi_col]) or pd.isna(cur[ppo_col]):
+                    non_fifo_flags.append(False)
+                    continue
+                violators = df[
+                    (df[model_col] == cur[model_col]) &
+                    (df[pdi_col]   <  cur[pdi_col]) &
+                    (df[ppo_col]   >  cur[ppo_col] + tol)
+                ]
+                non_fifo_flags.append(len(violators) > 0)
+            return non_fifo_flags
+
+        # Build working dataframe
         fifo_df = df_filt[["Model", "PDIcomp. Date", ppoin_col]].copy()
-        fifo_df["_in"]  = parse_dt_full(fifo_df["PDIcomp. Date"])
-        fifo_df["_out"] = parse_dt_full(fifo_df[ppoin_col])
-        fifo_df = fifo_df.dropna(subset=["_in", "_out"])
-        fifo_df["wait_min"] = (fifo_df["_out"] - fifo_df["_in"]).dt.total_seconds() / 60
-        fifo_df = fifo_df[fifo_df["wait_min"] >= 0]  # drop negative (data error)
+        fifo_df["_pdi"] = parse_dt_full(fifo_df["PDIcomp. Date"])
+        fifo_df["_ppo"] = parse_dt_full(fifo_df[ppoin_col])
+        fifo_df = fifo_df.dropna(subset=["_pdi", "_ppo"])
 
         if fifo_df.empty:
             st.caption("⚠️ Tidak ada data FIFO valid untuk filter ini.")
         else:
-            fifo_summary = (
-                fifo_df.groupby("Model")["wait_min"]
-                .agg(Units="count", Avg="mean", Min="min", Max="max", Median="median")
-                .reset_index()
-                .sort_values("Avg", ascending=False)
-            )
-            max_avg = fifo_summary["Avg"].max() if not fifo_summary.empty else 1
+            with st.spinner("Menghitung FIFO compliance..."):
+                fifo_df["_non_fifo"] = calc_fifo_compliance(
+                    fifo_df, "_pdi", "_ppo", "Model", tolerance_min=15
+                )
 
+            # Per-model summary
+            fifo_by_model = []
+            for model, grp in fifo_df.groupby("Model"):
+                total   = len(grp)
+                nf      = grp["_non_fifo"].sum()
+                ok      = total - nf
+                pct     = round(ok / total * 100, 1) if total else 0
+                fifo_by_model.append({
+                    "Model":    model,
+                    "Total":    total,
+                    "FIFO_OK":  int(ok),
+                    "NonFIFO":  int(nf),
+                    "FIFO_Pct": pct,
+                })
+            fifo_by_model = sorted(fifo_by_model, key=lambda x: x["FIFO_Pct"])
+
+            # Chart
             st.markdown("""
             <div style='background:#0d1526;border:1px solid rgba(100,160,255,.12);
               border-radius:10px;padding:14px 16px;'>
-              <div style='display:grid;grid-template-columns:90px 1fr 65px 55px 65px 50px;
+              <div style='display:grid;grid-template-columns:90px 1fr 60px 65px 55px;
                 gap:4px;font-size:.57rem;color:#7a90bb;text-transform:uppercase;
                 letter-spacing:.05em;margin-bottom:8px;padding-bottom:6px;
                 border-bottom:1px solid rgba(100,160,255,.1)'>
-                <span>Model</span><span>Avg Wait Time</span>
-                <span style='text-align:right'>Avg</span>
-                <span style='text-align:right'>Min</span>
-                <span style='text-align:right'>Max</span>
+                <span>Model</span><span>FIFO Compliance</span>
+                <span style='text-align:right'>FIFO%</span>
+                <span style='text-align:right'>Non-FIFO</span>
                 <span style='text-align:right'>Units</span>
               </div>
             """, unsafe_allow_html=True)
 
-            for _, row in fifo_summary.iterrows():
-                bar_pct = (row["Avg"] / max_avg * 100) if max_avg > 0 else 0
-                avg_h   = row["Avg"] / 60
-                bar_color = "#00e5a0" if avg_h <= 2 else ("#ffcc40" if avg_h <= 4 else "#ff4060")
-                lbl_left  = min(bar_pct + 1, 55)
+            for row in fifo_by_model:
+                pct       = row["FIFO_Pct"]
+                bar_color = "#00e5a0" if pct >= 95 else ("#ffcc40" if pct >= 85 else "#ff4060")
+                ng_color  = "#ff4060" if row["NonFIFO"] > 0 else "#3a4a6a"
 
                 st.markdown(f"""
-                <div style='display:grid;grid-template-columns:90px 1fr 65px 55px 65px 50px;
+                <div style='display:grid;grid-template-columns:90px 1fr 60px 65px 55px;
                   gap:4px;align-items:center;margin-bottom:5px'>
                   <span style='font-size:.61rem;font-weight:600;color:#e0e8ff;
                     white-space:nowrap;overflow:hidden;text-overflow:ellipsis'
                     title='{row["Model"]}'>{row["Model"]}</span>
-                  <div style='background:#0a1525;border-radius:3px;height:14px;position:relative;overflow:visible'>
-                    <div style='width:{bar_pct:.1f}%;background:{bar_color};height:100%;
-                      border-radius:3px;min-width:2px'></div>
-                    <span style='position:absolute;left:{lbl_left:.0f}%;top:50%;
-                      transform:translateY(-50%);font-size:.49rem;color:#7a90bb;white-space:nowrap'>
-                      {avg_h:.1f}h</span>
+                  <div style='background:#0a1525;border-radius:3px;height:14px;position:relative'>
+                    <div style='width:{pct:.1f}%;background:{bar_color};height:100%;border-radius:3px'></div>
+                    <div style='position:absolute;top:0;left:0;width:100%;height:100%;
+                      display:flex;align-items:center;padding-left:6px'>
+                      <span style='font-size:.48rem;color:rgba(255,255,255,.5);font-weight:700'></span>
+                    </div>
                   </div>
-                  <span style='font-size:.59rem;font-family:monospace;color:{bar_color};text-align:right'>
-                    {round(row["Avg"])} min</span>
-                  <span style='font-size:.59rem;font-family:monospace;color:#3d9bff;text-align:right'>
-                    {round(row["Min"])} min</span>
-                  <span style='font-size:.59rem;font-family:monospace;color:#a066ff;text-align:right'>
-                    {round(row["Max"])} min</span>
-                  <span style='font-size:.59rem;font-family:monospace;color:#7a90bb;text-align:right'>
-                    {int(row["Units"])}</span>
+                  <span style='font-size:.62rem;font-weight:700;font-family:monospace;
+                    color:{bar_color};text-align:right'>{pct:.1f}%</span>
+                  <span style='font-size:.62rem;font-family:monospace;
+                    color:{ng_color};text-align:right'>{row["NonFIFO"]} unit</span>
+                  <span style='font-size:.62rem;font-family:monospace;
+                    color:#7a90bb;text-align:right'>{row["Total"]}</span>
                 </div>
                 """, unsafe_allow_html=True)
 
             st.markdown("</div>", unsafe_allow_html=True)
 
-            # Summary KPIs
-            total_fifo  = len(fifo_df)
-            slow_units  = len(fifo_df[fifo_df["wait_min"] > 240])   # >4 jam
-            overall_avg = fifo_df["wait_min"].mean()
-            fifo_ok_pct = round((total_fifo - slow_units) / total_fifo * 100, 1) if total_fifo else 0
+            # Overall KPIs
+            total_all = len(fifo_df)
+            nf_all    = int(fifo_df["_non_fifo"].sum())
+            ok_all    = total_all - nf_all
+            pct_all   = round(ok_all / total_all * 100, 1) if total_all else 0
 
             cf1, cf2, cf3 = st.columns(3)
             with cf1:
+                c = "#00e5a0" if pct_all >= 95 else ("#ffcc40" if pct_all >= 85 else "#ff4060")
                 st.markdown(f"""<div class='kpi-box' style='padding:10px 14px;margin-top:8px'>
-                  <div class='kpi-n' style='font-size:1.3rem;color:#7fb3ff'>{round(overall_avg)} min</div>
-                  <div class='kpi-l'>Overall Avg Wait</div></div>""", unsafe_allow_html=True)
+                  <div class='kpi-n' style='font-size:1.4rem;color:{c}'>{pct_all}%</div>
+                  <div class='kpi-l'>Overall FIFO Compliance</div></div>""", unsafe_allow_html=True)
             with cf2:
                 st.markdown(f"""<div class='kpi-box' style='padding:10px 14px;margin-top:8px'>
-                  <div class='kpi-n' style='font-size:1.3rem;color:#ff4060'>{slow_units}</div>
-                  <div class='kpi-l'>Units Wait &gt;4 Jam</div></div>""", unsafe_allow_html=True)
+                  <div class='kpi-n' style='font-size:1.4rem;color:#ff4060'>{nf_all}</div>
+                  <div class='kpi-l'>Units Non-FIFO (Menyalip)</div></div>""", unsafe_allow_html=True)
             with cf3:
                 st.markdown(f"""<div class='kpi-box' style='padding:10px 14px;margin-top:8px'>
-                  <div class='kpi-n' style='font-size:1.3rem;color:#00e5a0'>{fifo_ok_pct}%</div>
-                  <div class='kpi-l'>FIFO OK (≤4 Jam)</div></div>""", unsafe_allow_html=True)
+                  <div class='kpi-n' style='font-size:1.4rem;color:#00e5a0'>{ok_all}</div>
+                  <div class='kpi-l'>Units FIFO OK</div></div>""", unsafe_allow_html=True)
 
-            st.caption("🟢 ≤2 jam · 🟡 2–4 jam · 🔴 >4 jam | Waktu tunggu unit dari selesai PDI sampai masuk PPO")
+            st.caption("🟢 ≥95% · 🟡 85–95% · 🔴 <85% | Toleransi 15 menit · Non-FIFO = unit yg keluar PPO lebih dulu padahal masuk PDI belakangan")
 
 with right_col:
     # Key Findings & Action Points
