@@ -46,32 +46,35 @@ check_password()
 # ── PARAMS ────────────────────────────────────────────────────────────────────
 PARAMS = {
     "ALL": {
-        "Receiving": {"avg": 1.54,  "std": 1.143},
-        "PPO":       {"avg": 2.86,  "std": 2.135},
-        "SPU In":    {"avg": 1.01,  "std": 0.523},
-        "SPU Comp":  {"avg": 0.80,  "std": 0.479},
-        "Total":     {"avg": 6.26,  "std": 2.468},
+        "Receiving": {"avg": 1.74,  "std": 0.49},
+        "PPO":       {"avg": 2.86,  "std": 0.72},
+        "SPU In":    {"avg": 1.01,  "std": 0.25},
+        "SPU Comp":  {"avg": 0.80,  "std": 0.20},
+        "Total":     {"avg": 6.46,  "std": 1.67},
     },
+
     "NVDC Cibitung": {
-        "Receiving": {"avg": 0.974, "std": 0.416},
-        "PPO":       {"avg": 2.934, "std": 2.317},
-        "SPU In":    {"avg": 1.171, "std": 0.409},
-        "SPU Comp":  {"avg": 0.934, "std": 0.424},
-        "Total":     {"avg": 6.079, "std": 2.806},
+        "Receiving": {"avg": 0.974, "std": 0.24},
+        "PPO":       {"avg": 2.934, "std": 0.73},
+        "SPU In":    {"avg": 1.171, "std": 0.29},
+        "SPU Comp":  {"avg": 0.934, "std": 0.23},
+        "Total":     {"avg": 6.079, "std": 1.52},
     },
+
     "NVDC Sunter": {
-        "Receiving": {"avg": 4.0,   "std": 0.5},
-        "PPO":       {"avg": 1.25,  "std": 0.5},
-        "SPU In":    {"avg": 1.0,   "std": 0.0},
-        "SPU Comp":  {"avg": 0.75,  "std": 0.0},
-        "Total":     {"avg": 7.0,   "std": 0.5},
+        "Receiving": {"avg": 5.0,   "std": 1.25},
+        "PPO":       {"avg": 1.75,  "std": 0.43},
+        "SPU In":    {"avg": 1.0,   "std": 0.25},
+        "SPU Comp":  {"avg": 0.75,  "std": 0.19},
+        "Total":     {"avg": 8.50,   "std": 2.13},
     },
+
     "NVDC Sunter Lexus": {
-        "Receiving": {"avg": 2.667, "std": 0.289},
-        "PPO":       {"avg": 4.0,   "std": 0.5},
-        "SPU In":    {"avg": 0.0,   "std": 0.0},
-        "SPU Comp":  {"avg": 0.0,   "std": 0.0},
-        "Total":     {"avg": 6.667, "std": 0.764},
+        "Receiving": {"avg": 2.667, "std": 0.67},
+        "PPO":       {"avg": 4.0,   "std": 1.00},
+        "SPU In":    {"avg": 0.0,   "std": 0.00},
+        "SPU Comp":  {"avg": 0.0,   "std": 0.00},
+        "Total":     {"avg": 6.667, "std": 1.67},
     },
 }
 
