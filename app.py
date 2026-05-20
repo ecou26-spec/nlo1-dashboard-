@@ -146,31 +146,35 @@ def load_from_sheets():
 # ── COMPUTE ───────────────────────────────────────────────────────────────────
 def parse_mixed_dates(series):
     """
-    Handle mixed date formats in source data by trying explicit formats in order.
-    Formats found in the data:
-    - M/D/YYYY H:MM       e.g. '3/16/2026 16:49'   (most common)
-    - YYYY-MM-DD HH:MM:SS e.g. '2026-05-02 10:16:00'
-    - YYYY-MM-DD HH:MM    e.g. '2026-05-02 10:16'
-    - YYYY-MM-DD          e.g. '2026-05-02'
-    NOTE: dayfirst=True is NOT used — it causes ISO dates like '2026-12-03'
-    to be misread as '2026-03-12' (month/day swapped), losing all April+ dates.
+    Auto-detect D/M/YYYY vs M/D/YYYY by sampling the data:
+    - If any value has first number > 12, it must be day-first (D/M/YYYY)
+    - Otherwise assume M/D/YYYY (US format, original Google Sheets export)
+    - ISO format (YYYY-MM-DD) is always handled correctly regardless.
+    This handles Google Sheets locale changes without needing code updates.
     """
     raw = series.astype(str).str.strip()
-    results = pd.Series([pd.NaT] * len(raw), index=raw.index, dtype="datetime64[ns]")
 
-    for fmt in [
-        "%m/%d/%Y %H:%M",     # 3/16/2026 16:49
-        "%m/%d/%Y %H:%M:%S",  # 3/16/2026 16:49:00
-        "%Y-%m-%d %H:%M:%S",  # 2026-05-02 10:16:00
-        "%Y-%m-%d %H:%M",     # 2026-05-02 10:16
-        "%Y-%m-%d",           # 2026-05-02
-        "%m/%d/%Y",           # 3/16/2026
-    ]:
+    # Auto-detect: sample slash-separated dates, check if first number > 12
+    slash_vals = raw[raw.str.match(r"^\d{1,2}/\d{1,2}/\d{4}")]
+    day_first = any(
+        int(v.split("/")[0]) > 12
+        for v in slash_vals.head(50)
+        if v.split("/")[0].isdigit()
+    )
+
+    if day_first:
+        slash_fmts = ["%d/%m/%Y %H:%M", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y"]
+    else:
+        slash_fmts = ["%m/%d/%Y %H:%M", "%m/%d/%Y %H:%M:%S", "%m/%d/%Y"]
+
+    iso_fmts = ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"]
+
+    results = pd.Series([pd.NaT] * len(raw), index=raw.index, dtype="datetime64[ns]")
+    for fmt in slash_fmts + iso_fmts:
         mask = results.isna()
         if not mask.any():
             break
-        attempt = pd.to_datetime(raw[mask], format=fmt, errors="coerce")
-        results[mask] = attempt
+        results[mask] = pd.to_datetime(raw[mask], format=fmt, errors="coerce")
 
     return results
 
@@ -550,11 +554,19 @@ with left_col:
         st.caption("⚠️ Kolom 'PPOin Date' tidak ditemukan. Pastikan nama kolom di Google Sheets sesuai.")
     else:
         def parse_dt_full(series):
-            """Parse full datetime including time component for FIFO comparison."""
+            """Parse full datetime for FIFO — same auto-detect as parse_mixed_dates."""
             raw = series.astype(str).str.strip()
+            slash_vals = raw[raw.str.match(r"^\d{1,2}/\d{1,2}/\d{4}")]
+            day_first = any(
+                int(v.split("/")[0]) > 12
+                for v in slash_vals.head(50)
+                if v.split("/")[0].isdigit()
+            )
+            slash_fmts = (["%d/%m/%Y %H:%M", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y"]
+                          if day_first else
+                          ["%m/%d/%Y %H:%M", "%m/%d/%Y %H:%M:%S", "%m/%d/%Y"])
             result = pd.Series([pd.NaT] * len(raw), index=raw.index, dtype="datetime64[ns]")
-            for fmt in ["%m/%d/%Y %H:%M", "%m/%d/%Y %H:%M:%S",
-                        "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d", "%m/%d/%Y"]:
+            for fmt in slash_fmts + ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"]:
                 mask = result.isna()
                 if not mask.any(): break
                 result[mask] = pd.to_datetime(raw[mask], format=fmt, errors="coerce")
