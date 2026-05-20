@@ -737,7 +737,7 @@ with left_col:
             with cf2:
                 st.markdown(f"""<div class='kpi-box' style='padding:10px 14px;margin-top:8px'>
                   <div class='kpi-n' style='font-size:1.4rem;color:#ff4060'>{nf_all}</div>
-                  <div class='kpi-l'>Units Non-FIFO (Menyalip)</div></div>""", unsafe_allow_html=True)
+                  <div class='kpi-l'>Units Non-FIFO (Advance)</div></div>""", unsafe_allow_html=True)
             with cf3:
                 st.markdown(f"""<div class='kpi-box' style='padding:10px 14px;margin-top:8px'>
                   <div class='kpi-n' style='font-size:1.4rem;color:#00e5a0'>{ok_all}</div>
