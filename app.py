@@ -1,4 +1,3 @@
-import os
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -22,7 +21,7 @@ def check_password():
     def login_form():
         st.markdown("""
         <div style='text-align:center; padding: 60px 0 20px 0'>
-            <h2 style='color:#7fb3ff'>🚗 NLO1 Lead Time Dashboard (Std CV: 25%)</h2>
+            <h2 style='color:#7fb3ff'>🚗 NLO1 Lead Time Dashboard</h2>
             <p style='color:#888'>NLO1 Dept — Toyota Astra Motor</p>
         </div>
         """, unsafe_allow_html=True)
@@ -44,46 +43,35 @@ def check_password():
 
 check_password()
 
-# ── PARAMS (Target CV 25%) ────────────────────────────────────────────────────
+# ── PARAMS ────────────────────────────────────────────────────────────────────
 PARAMS = {
-    "meta": {
-        "cv_target": 0.25,
-        "note": (
-            "Master parameter diseragamkan ke CV (Coefficient of Variation) – Range Ideal 25% sebagai target stabilitas proses, "
-            "bukan representasi kondisi aktual operasional."
-        )
-    },
-
     "ALL": {
-        "Receiving": {"avg": 1.74,  "std": 0.49},
-        "PPO":       {"avg": 2.86,  "std": 0.72},
-        "SPU In":    {"avg": 1.01,  "std": 0.25},
-        "SPU Comp":  {"avg": 0.80,  "std": 0.20},
-        "Total":     {"avg": 6.46,  "std": 1.67},
+        "Receiving": {"avg": 1.54,  "std": 1.143},
+        "PPO":       {"avg": 2.86,  "std": 2.135},
+        "SPU In":    {"avg": 1.01,  "std": 0.523},
+        "SPU Comp":  {"avg": 0.80,  "std": 0.479},
+        "Total":     {"avg": 6.26,  "std": 2.468},
     },
-
     "NVDC Cibitung": {
-        "Receiving": {"avg": 0.974, "std": 0.24},
-        "PPO":       {"avg": 2.934, "std": 0.73},
-        "SPU In":    {"avg": 1.171, "std": 0.29},
-        "SPU Comp":  {"avg": 0.934, "std": 0.23},
-        "Total":     {"avg": 6.079, "std": 1.52},
+        "Receiving": {"avg": 0.974, "std": 0.416},
+        "PPO":       {"avg": 2.934, "std": 2.317},
+        "SPU In":    {"avg": 1.171, "std": 0.409},
+        "SPU Comp":  {"avg": 0.934, "std": 0.424},
+        "Total":     {"avg": 6.079, "std": 2.806},
     },
-
     "NVDC Sunter": {
-        "Receiving": {"avg": 5.0,   "std": 1.25},
-        "PPO":       {"avg": 1.75,  "std": 0.43},
-        "SPU In":    {"avg": 1.0,   "std": 0.25},
-        "SPU Comp":  {"avg": 0.75,  "std": 0.19},
-        "Total":     {"avg": 8.50,   "std": 2.13},
+        "Receiving": {"avg": 4.0,   "std": 0.5},
+        "PPO":       {"avg": 1.25,  "std": 0.5},
+        "SPU In":    {"avg": 1.0,   "std": 0.0},
+        "SPU Comp":  {"avg": 0.75,  "std": 0.0},
+        "Total":     {"avg": 7.0,   "std": 0.5},
     },
-
     "NVDC Sunter Lexus": {
-        "Receiving": {"avg": 2.667, "std": 0.67},
-        "PPO":       {"avg": 4.0,   "std": 1.00},
-        "SPU In":    {"avg": 0.0,   "std": 0.00},
-        "SPU Comp":  {"avg": 0.0,   "std": 0.00},
-        "Total":     {"avg": 6.667, "std": 1.67},
+        "Receiving": {"avg": 2.667, "std": 0.289},
+        "PPO":       {"avg": 4.0,   "std": 0.5},
+        "SPU In":    {"avg": 0.0,   "std": 0.0},
+        "SPU Comp":  {"avg": 0.0,   "std": 0.0},
+        "Total":     {"avg": 6.667, "std": 0.764},
     },
 }
 
@@ -132,6 +120,7 @@ def classify(val, avg, std):
     return "NG"
 
 def classify_by_loc(val, loc, pname):
+    """Classify a value using location-specific params."""
     p = PARAMS[loc][pname]
     return classify(val, p["avg"], p["std"])
 
@@ -155,30 +144,48 @@ def load_from_sheets():
         return None, str(e)
 
 # ── COMPUTE ───────────────────────────────────────────────────────────────────
-def parse_date_flexible(val):
-    if pd.isna(val) or str(val).strip() == "": return pd.NaT
-    s = str(val).strip()[:10]
-    for fmt in ["%m/%d/%Y","%d/%m/%Y","%Y-%m-%d","%m/%d/%y","%d/%m/%y","%d-%m-%Y","%Y/%m/%d"]:
-        try:
-            dt = datetime.strptime(s, fmt)
-            if 2020 <= dt.year <= 2030:
-                return dt
-        except: continue
-    try:
-        dt = pd.to_datetime(val, dayfirst=False)
-        if 2020 <= dt.year <= 2030: return dt
-    except: pass
-    return pd.NaT
+def parse_mixed_dates(series):
+    """
+    Handle mixed date formats in source data by trying explicit formats in order.
+    Formats found in the data:
+    - M/D/YYYY H:MM       e.g. '3/16/2026 16:49'   (most common)
+    - YYYY-MM-DD HH:MM:SS e.g. '2026-05-02 10:16:00'
+    - YYYY-MM-DD HH:MM    e.g. '2026-05-02 10:16'
+    - YYYY-MM-DD          e.g. '2026-05-02'
+    NOTE: dayfirst=True is NOT used — it causes ISO dates like '2026-12-03'
+    to be misread as '2026-03-12' (month/day swapped), losing all April+ dates.
+    """
+    raw = series.astype(str).str.strip()
+    results = pd.Series([pd.NaT] * len(raw), index=raw.index, dtype="datetime64[ns]")
+
+    for fmt in [
+        "%m/%d/%Y %H:%M",     # 3/16/2026 16:49
+        "%m/%d/%Y %H:%M:%S",  # 3/16/2026 16:49:00
+        "%Y-%m-%d %H:%M:%S",  # 2026-05-02 10:16:00
+        "%Y-%m-%d %H:%M",     # 2026-05-02 10:16
+        "%Y-%m-%d",           # 2026-05-02
+        "%m/%d/%Y",           # 3/16/2026
+    ]:
+        mask = results.isna()
+        if not mask.any():
+            break
+        attempt = pd.to_datetime(raw[mask], format=fmt, errors="coerce")
+        results[mask] = attempt
+
+    return results
 
 def prepare_df(df):
     df.columns = df.columns.str.strip().str.replace('\ufeff', '', regex=False)
-    df["_date"]  = df["PDIcomp. Date"].apply(parse_date_flexible)
-    df["_date"]  = pd.to_datetime(df["_date"], errors="coerce").dt.strftime("%Y-%m-%d")
+    df["_date"]  = parse_mixed_dates(df["PDIcomp. Date"]).dt.strftime("%Y-%m-%d")
     df["_month"] = df["_date"].str[:7]
     df["_loc"]   = df["Model"].apply(get_loc)
     return df.dropna(subset=["_date"])
 
 def calc_stats(df, sel_loc):
+    """
+    When sel_loc == "ALL", each row is classified using its own location's params.
+    When sel_loc is a specific location, use that location's params for all rows.
+    """
     if df.empty: return None
 
     result = {}
@@ -189,6 +196,8 @@ def calc_stats(df, sel_loc):
 
         vals = pd.to_numeric(df[col], errors="coerce")
 
+        # Classify each row using its own location param (when ALL),
+        # or the selected location param
         if sel_loc == "ALL":
             statuses = pd.Series([
                 classify(val, PARAMS[loc][pname]["avg"], PARAMS[loc][pname]["std"])
@@ -205,7 +214,9 @@ def calc_stats(df, sel_loc):
         na     = int(statuses.isna().sum())
         tc     = fast + normal + ng
 
+        # For display: use weighted avg of params across locations (ALL) or single loc
         if sel_loc == "ALL":
+            # compute weighted param avg/std based on how many rows per loc
             loc_counts = df["_loc"].value_counts()
             total_n = loc_counts.sum()
             param_avg = sum(PARAMS[loc][pname]["avg"] * cnt for loc, cnt in loc_counts.items()
@@ -235,9 +246,11 @@ def calc_stats(df, sel_loc):
             "thresh_hi":  round(thresh_hi, 3),
         }
 
+    # Per-model stats — each model uses its OWN location param
     models = []
     for m, mdf in df.groupby("Model"):
         model_loc  = get_loc(m)
+        # Use model's own location params if ALL, else use selected loc params
         use_loc = model_loc if sel_loc == "ALL" else sel_loc
 
         p   = PARAMS[use_loc]["Total"]
@@ -281,13 +294,7 @@ st.markdown("""
 <style>
 [data-testid="stAppViewContainer"]{background:#060a12;color:#e0e8ff}
 [data-testid="stHeader"]{background:transparent}
-.block-container{padding:1rem 2rem;max-width:1200px;margin-right:240px}
-#chat-panel{position:fixed;top:60px;right:0;width:220px;height:calc(100vh - 60px);
-  background:#0a1020;border-left:1px solid rgba(100,160,255,.2);
-  display:flex;flex-direction:column;z-index:999;padding:12px}
-#chat-messages{flex:1;overflow-y:auto;margin-bottom:8px;padding-right:4px}
-#chat-messages::-webkit-scrollbar{width:3px}
-#chat-messages::-webkit-scrollbar-thumb{background:#1e3a6e;border-radius:3px}
+.block-container{padding:1rem 2rem;max-width:1400px}
 .kpi-box{background:linear-gradient(135deg,#0d1526,#111d35);border:1px solid rgba(100,160,255,.15);
   border-radius:12px;padding:16px 20px;text-align:center}
 .kpi-n{font-size:2rem;font-weight:800;font-family:monospace}
@@ -368,7 +375,7 @@ with col_day:
     def day_label(d):
         if d == "ALL": return "📅 All"
         dt = datetime.strptime(d, "%Y-%m-%d")
-        days = ["Mo","Tu","We","Th","Fr","Sa","Su"]
+        days = ["Su","Mo","Tu","We","Th","Fr","Sa"]
         return f"{dt.day} {days[dt.weekday()]}"
     sel_date = st.radio("Tanggal", day_opts, format_func=day_label,
                         horizontal=True, label_visibility="collapsed")
@@ -418,6 +425,7 @@ if t_proc:
     color     = ach_color(ach)
     thresh_lo = t_proc["thresh_lo"]
     thresh_hi = t_proc["thresh_hi"]
+    thresh_note = "weighted avg threshold" if sel_loc == "ALL" else "param threshold"
     st.markdown(f"""
     <div style='background:#111d35;border-radius:10px;padding:16px 20px;border:1px solid rgba(100,160,255,.15)'>
       <div style='display:flex;justify-content:space-between;margin-bottom:8px'>
@@ -459,19 +467,19 @@ for i, (pname, color) in enumerate(PROC_COLORS.items()):
           <div style="font-size:1.4rem;font-weight:800;color:{ach_color(p['achieved'])};
             font-family:monospace;margin-bottom:6px">{ach_p:.1f}%</div>
           <div class="stat-row">
-            <span class="stat-l">Actual Lead Time</span>
+            <span class="stat-l">Actual Avg</span>
             <span class="stat-v" style="color:{color}">{fmt_mins(p['actual_avg'])}</span>
           </div>
           <div class="stat-row">
-            <span class="stat-l">Target Lead Time</span>
+            <span class="stat-l">Param Avg</span>
             <span class="stat-v" style="color:#7a90bb">{fmt_mins(p['param_avg'])}</span>
           </div>
           <div class="stat-row">
-            <span class="stat-l">Actual Variation</span>
+            <span class="stat-l">Actual Std</span>
             <span class="stat-v" style="color:{color}">±{to_mins(p['actual_std'])} min</span>
           </div>
           <div class="stat-row">
-            <span class="stat-l">Standard Variation</span>
+            <span class="stat-l">Param Std</span>
             <span class="stat-v" style="color:#7a90bb">±{to_mins(p['param_std'])} min</span>
           </div>
           <div style="margin-top:8px;font-size:.55rem;display:flex;justify-content:space-between;color:#7a90bb">
@@ -527,6 +535,149 @@ with left_col:
             })
         if daily_rows:
             st.dataframe(pd.DataFrame(daily_rows), use_container_width=True, hide_index=True)
+
+    # ── FIFO ANALYSIS ──────────────────────────────────────────────────────────
+    st.markdown('<div class="section-title">🔄 FIFO Compliance — PDIcomp. Date (In) vs PPOin Date (Out)</div>', unsafe_allow_html=True)
+
+    # Detect PPOin Date column
+    ppoin_col = None
+    for candidate in ["PPOin Date", "PPOin. Date", "PPO in Date", "PPOIn Date", "PPO In Date"]:
+        if candidate in df_filt.columns:
+            ppoin_col = candidate
+            break
+
+    if ppoin_col is None:
+        st.caption("⚠️ Kolom 'PPOin Date' tidak ditemukan. Pastikan nama kolom di Google Sheets sesuai.")
+    else:
+        def parse_dt_full(series):
+            """Parse full datetime including time component for FIFO comparison."""
+            raw = series.astype(str).str.strip()
+            result = pd.Series([pd.NaT] * len(raw), index=raw.index, dtype="datetime64[ns]")
+            for fmt in ["%m/%d/%Y %H:%M", "%m/%d/%Y %H:%M:%S",
+                        "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d", "%m/%d/%Y"]:
+                mask = result.isna()
+                if not mask.any(): break
+                result[mask] = pd.to_datetime(raw[mask], format=fmt, errors="coerce")
+            return result
+
+        def calc_fifo_compliance(df, pdi_col, ppo_col, model_col, tolerance_min=15):
+            """
+            Port of DAX FIFO_Model_% logic.
+            Unit i = NonFIFO jika ada unit j (model sama) dimana:
+              - pdi_j < pdi_i  (j masuk sebelum i)
+              - ppo_j > ppo_i + tolerance  (tapi j keluar setelah i + toleransi)
+            Artinya unit i 'menyalip antrian' dari unit j.
+            """
+            tol = pd.Timedelta(minutes=tolerance_min)
+            non_fifo_flags = []
+            for _, cur in df.iterrows():
+                if pd.isna(cur[pdi_col]) or pd.isna(cur[ppo_col]):
+                    non_fifo_flags.append(False)
+                    continue
+                violators = df[
+                    (df[model_col] == cur[model_col]) &
+                    (df[pdi_col]   <  cur[pdi_col]) &
+                    (df[ppo_col]   >  cur[ppo_col] + tol)
+                ]
+                non_fifo_flags.append(len(violators) > 0)
+            return non_fifo_flags
+
+        # Build working dataframe
+        fifo_df = df_filt[["Model", "PDIcomp. Date", ppoin_col]].copy()
+        fifo_df["_pdi"] = parse_dt_full(fifo_df["PDIcomp. Date"])
+        fifo_df["_ppo"] = parse_dt_full(fifo_df[ppoin_col])
+        fifo_df = fifo_df.dropna(subset=["_pdi", "_ppo"])
+
+        if fifo_df.empty:
+            st.caption("⚠️ Tidak ada data FIFO valid untuk filter ini.")
+        else:
+            with st.spinner("Menghitung FIFO compliance..."):
+                fifo_df["_non_fifo"] = calc_fifo_compliance(
+                    fifo_df, "_pdi", "_ppo", "Model", tolerance_min=15
+                )
+
+            # Per-model summary
+            fifo_by_model = []
+            for model, grp in fifo_df.groupby("Model"):
+                total   = len(grp)
+                nf      = grp["_non_fifo"].sum()
+                ok      = total - nf
+                pct     = round(ok / total * 100, 1) if total else 0
+                fifo_by_model.append({
+                    "Model":    model,
+                    "Total":    total,
+                    "FIFO_OK":  int(ok),
+                    "NonFIFO":  int(nf),
+                    "FIFO_Pct": pct,
+                })
+            fifo_by_model = sorted(fifo_by_model, key=lambda x: x["FIFO_Pct"])
+
+            # Chart
+            st.markdown("""
+            <div style='background:#0d1526;border:1px solid rgba(100,160,255,.12);
+              border-radius:10px;padding:14px 16px;'>
+              <div style='display:grid;grid-template-columns:90px 1fr 60px 65px 55px;
+                gap:4px;font-size:.57rem;color:#7a90bb;text-transform:uppercase;
+                letter-spacing:.05em;margin-bottom:8px;padding-bottom:6px;
+                border-bottom:1px solid rgba(100,160,255,.1)'>
+                <span>Model</span><span>FIFO Compliance</span>
+                <span style='text-align:right'>FIFO%</span>
+                <span style='text-align:right'>Non-FIFO</span>
+                <span style='text-align:right'>Units</span>
+              </div>
+            """, unsafe_allow_html=True)
+
+            for row in fifo_by_model:
+                pct       = row["FIFO_Pct"]
+                bar_color = "#00e5a0" if pct >= 95 else ("#ffcc40" if pct >= 85 else "#ff4060")
+                ng_color  = "#ff4060" if row["NonFIFO"] > 0 else "#3a4a6a"
+
+                st.markdown(f"""
+                <div style='display:grid;grid-template-columns:90px 1fr 60px 65px 55px;
+                  gap:4px;align-items:center;margin-bottom:5px'>
+                  <span style='font-size:.61rem;font-weight:600;color:#e0e8ff;
+                    white-space:nowrap;overflow:hidden;text-overflow:ellipsis'
+                    title='{row["Model"]}'>{row["Model"]}</span>
+                  <div style='background:#0a1525;border-radius:3px;height:14px;position:relative'>
+                    <div style='width:{pct:.1f}%;background:{bar_color};height:100%;border-radius:3px'></div>
+                    <div style='position:absolute;top:0;left:0;width:100%;height:100%;
+                      display:flex;align-items:center;padding-left:6px'>
+                      <span style='font-size:.48rem;color:rgba(255,255,255,.5);font-weight:700'></span>
+                    </div>
+                  </div>
+                  <span style='font-size:.62rem;font-weight:700;font-family:monospace;
+                    color:{bar_color};text-align:right'>{pct:.1f}%</span>
+                  <span style='font-size:.62rem;font-family:monospace;
+                    color:{ng_color};text-align:right'>{row["NonFIFO"]} unit</span>
+                  <span style='font-size:.62rem;font-family:monospace;
+                    color:#7a90bb;text-align:right'>{row["Total"]}</span>
+                </div>
+                """, unsafe_allow_html=True)
+
+            st.markdown("</div>", unsafe_allow_html=True)
+
+            # Overall KPIs
+            total_all = len(fifo_df)
+            nf_all    = int(fifo_df["_non_fifo"].sum())
+            ok_all    = total_all - nf_all
+            pct_all   = round(ok_all / total_all * 100, 1) if total_all else 0
+
+            cf1, cf2, cf3 = st.columns(3)
+            with cf1:
+                c = "#00e5a0" if pct_all >= 95 else ("#ffcc40" if pct_all >= 85 else "#ff4060")
+                st.markdown(f"""<div class='kpi-box' style='padding:10px 14px;margin-top:8px'>
+                  <div class='kpi-n' style='font-size:1.4rem;color:{c}'>{pct_all}%</div>
+                  <div class='kpi-l'>Overall FIFO Compliance</div></div>""", unsafe_allow_html=True)
+            with cf2:
+                st.markdown(f"""<div class='kpi-box' style='padding:10px 14px;margin-top:8px'>
+                  <div class='kpi-n' style='font-size:1.4rem;color:#ff4060'>{nf_all}</div>
+                  <div class='kpi-l'>Units Non-FIFO (Menyalip)</div></div>""", unsafe_allow_html=True)
+            with cf3:
+                st.markdown(f"""<div class='kpi-box' style='padding:10px 14px;margin-top:8px'>
+                  <div class='kpi-n' style='font-size:1.4rem;color:#00e5a0'>{ok_all}</div>
+                  <div class='kpi-l'>Units FIFO OK</div></div>""", unsafe_allow_html=True)
+
+            st.caption("🟢 ≥95% · 🟡 85–95% · 🔴 <85% | Toleransi 15 menit · Non-FIFO = unit yg keluar PPO lebih dulu padahal masuk PDI belakangan")
 
 with right_col:
     # Key Findings & Action Points
@@ -651,109 +802,6 @@ with right_col:
             f"</div>"
         )
         st.markdown(card_html, unsafe_allow_html=True)
-
-# ── MAIN LAYOUT: DASHBOARD (kiri) + CHATBOT (kanan) ─────────────────────────
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-
-def build_data_context(stats, sel_loc, sel_month, sel_date, df_filt):
-    t = stats["processes"].get("Total")
-    lines = [
-        "Kamu adalah asisten analisis data NLO1 Dept - Toyota Astra Motor. Jawab Bahasa Indonesia, singkat.",
-        f"Filter: {sel_loc} | {sel_month} | {sel_date}",
-        f"Units: {stats['total_units']} | Models: {stats['models_count']} | Over L/T: {stats['ng_units']}",
-    ]
-    if t:
-        lines.append(f"Total Achievement: {t['achieved']}% | FAST:{t['fast']} NORMAL:{t['normal']} NG:{t['ng']}")
-        lines.append(f"Avg actual: {fmt_mins(t['actual_avg'])} | Avg param: {fmt_mins(t['param_avg'])}")
-    lines.append("Per Proses:")
-    for pname in ["Receiving", "PPO", "SPU In", "SPU Comp"]:
-        p = stats["processes"].get(pname)
-        if p:
-            lines.append(f"  {pname}: {p['achieved']}% ach | avg {fmt_mins(p['actual_avg'])} | NG {p['ng']} units")
-    lines.append("Per Model:")
-    for m in stats["models"]:
-        lines.append(f"  {m['name']}: {m['n']} unit | ach {m['achieved']}% | avg {fmt_mins(m['total'])} | NG {m['ng']}")
-    return "\n".join(lines)
-
-def ask_ai(prompt, stats, sel_loc, sel_month, sel_date, df_filt):
-    import requests as req
-    import time
-    system_prompt = build_data_context(stats, sel_loc, sel_month, sel_date, df_filt)
-    cf_account = st.secrets.get("CF_ACCOUNT_ID", st.secrets.get("cf_account_id", ""))
-    cf_token   = st.secrets.get("CF_API_TOKEN",  st.secrets.get("cf_api_token",  ""))
-    for attempt in range(3):
-        try:
-            resp = req.post(
-                f"https://api.cloudflare.com/client/v4/accounts/{cf_account}/ai/run/@cf/meta/llama-3.1-8b-instruct",
-                headers={"Authorization": f"Bearer {cf_token}", "Content-Type": "application/json"},
-                json={
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user",   "content": prompt}
-                    ],
-                    "max_tokens": 600,
-                },
-                timeout=40,
-            )
-            if resp.status_code == 429:
-                wait = (attempt + 1) * 5
-                time.sleep(wait)
-                continue
-            resp.raise_for_status()
-            return resp.json()["result"]["response"]
-        except Exception as e:
-            if attempt == 2:
-                raise e
-            time.sleep(5)
-    return "❌ Gagal setelah 3 percobaan. Coba lagi beberapa saat."
-
-# ── CHATBOT PANEL (fixed right) ──────────────────────────────────────────────
-# Build chat messages HTML
-chat_msgs_html = ""
-for msg in st.session_state.chat_history:
-    is_user = msg["role"] == "user"
-    bg      = "rgba(61,155,255,.2)" if is_user else "rgba(160,102,255,.15)"
-    align   = "flex-end" if is_user else "flex-start"
-    icon    = "👤" if is_user else "🤖"
-    chat_msgs_html += f"""
-    <div style='display:flex;justify-content:{align};margin-bottom:6px'>
-    <div style='background:{bg};border-radius:8px;padding:6px 10px;
-    font-size:.6rem;color:#e0e8ff;max-width:90%;line-height:1.5'>
-    {icon} {msg["content"]}</div></div>"""
-
-st.markdown(f"""
-<div id='chat-panel'>
-  <div style='font-size:.68rem;font-weight:700;color:#7fb3ff;letter-spacing:.06em;
-  border-bottom:1px solid rgba(100,160,255,.15);padding-bottom:5px;margin-bottom:6px'>
-  🤖 AI ASSISTANT</div>
-  <div id='chat-messages'>{chat_msgs_html if chat_msgs_html else "<div style=\'color:#3a4a6a;font-size:.58rem;text-align:center;margin-top:40px\'>Tanya sesuatu tentang data dashboard...</div>"}</div>
-  <div style='font-size:.5rem;color:#3a4a6a;text-align:center;padding-top:4px'>Cloudflare AI · Gratis</div>
-</div>
-""", unsafe_allow_html=True)
-
-# ── CHAT INPUT (compact, di bawah dashboard) ──────────────────────────────────
-st.markdown("---")
-c_in, c_btn, c_clr = st.columns([6, 1, 1])
-with c_in:
-    user_input = st.text_input("", placeholder="🤖 Tanya AI tentang data...", label_visibility="collapsed", key="chat_input_box")
-with c_btn:
-    send = st.button("➤", use_container_width=True, key="chat_send")
-with c_clr:
-    if st.button("🗑️", use_container_width=True, key="chat_clear"):
-        st.session_state.chat_history = []
-        st.rerun()
-
-if (send or user_input) and user_input.strip():
-    if send:
-        st.session_state.chat_history.append({"role": "user", "content": user_input})
-        with st.spinner("AI menganalisis..."):
-            try:
-                answer = ask_ai(user_input, stats, sel_loc, sel_month, sel_date, df_filt)
-            except Exception as e:
-                answer = f"❌ Error: {str(e)}"
-        st.session_state.chat_history.append({"role": "assistant", "content": answer})
-        st.rerun()
 
 # ── FOOTER ────────────────────────────────────────────────────────────────────
 st.markdown("""
