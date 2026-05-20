@@ -629,7 +629,7 @@ with left_col:
                 result[mask] = pd.to_datetime(raw[mask], format=fmt, errors="coerce")
             return result
 
-        def calc_fifo_compliance(df, pdi_col, ppo_col, model_col, tolerance_min=60):
+        def calc_fifo_compliance(df, pdi_col, ppo_col, model_col, tolerance_min=90):
             """
             Port of DAX FIFO_Model_% logic.
             Unit i = NonFIFO jika ada unit j (model sama) dimana:
@@ -662,7 +662,7 @@ with left_col:
         else:
             with st.spinner("Menghitung FIFO compliance..."):
                 fifo_df["_non_fifo"] = calc_fifo_compliance(
-                    fifo_df, "_pdi", "_ppo", "Model", tolerance_min=60
+                    fifo_df, "_pdi", "_ppo", "Model", tolerance_min=90
                 )
 
             # Per-model summary
