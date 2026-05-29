@@ -631,7 +631,7 @@ with left_col:
             # Unit i = NonFIFO jika ada unit j (model sama) dengan
             # pdi_j < pdi_i (j masuk lebih awal) AND ppo_j > ppo_i + 15min (j keluar lebih lambat)
             # => unit i menyalip antrian unit j
-            tol = pd.Timedelta(minutes=600)
+            tol = pd.Timedelta(minutes=2600)
             non_fifo_flags = []
             with st.spinner("Menghitung FIFO compliance..."):
                 for _, cur in fifo_df.iterrows():
