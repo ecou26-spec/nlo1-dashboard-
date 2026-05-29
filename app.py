@@ -53,7 +53,6 @@ PARAMS = {
             "bukan representasi kondisi aktual operasional."
         )
     },
-
     "ALL": {
         "Receiving": {"avg": 1.74,  "std": 0.49},
         "PPO":       {"avg": 2.86,  "std": 0.72},
@@ -61,7 +60,6 @@ PARAMS = {
         "SPU Comp":  {"avg": 0.80,  "std": 0.20},
         "Total":     {"avg": 6.46,  "std": 1.67},
     },
-
     "NVDC Cibitung": {
         "Receiving": {"avg": 0.974, "std": 0.24},
         "PPO":       {"avg": 2.934, "std": 0.73},
@@ -69,15 +67,13 @@ PARAMS = {
         "SPU Comp":  {"avg": 0.934, "std": 0.23},
         "Total":     {"avg": 6.079, "std": 1.52},
     },
-
     "NVDC Sunter": {
         "Receiving": {"avg": 5.0,   "std": 1.25},
         "PPO":       {"avg": 1.75,  "std": 0.43},
         "SPU In":    {"avg": 1.0,   "std": 0.25},
         "SPU Comp":  {"avg": 0.75,  "std": 0.19},
-        "Total":     {"avg": 8.50,   "std": 2.13},
+        "Total":     {"avg": 8.50,  "std": 2.13},
     },
-
     "NVDC Sunter Lexus": {
         "Receiving": {"avg": 2.667, "std": 0.67},
         "PPO":       {"avg": 4.0,   "std": 1.00},
@@ -154,53 +150,22 @@ def load_from_sheets():
     except Exception as e:
         return None, str(e)
 
-# ── COMPUTE ───────────────────────────────────────────────────────────────────
-# [PATCH 1] parse_date_flexible — diganti dengan versi yang handle ISO dengan benar
-# Problem: Google Sheets mengkonversi ISO datetime ke format lokal (D/M/YYYY)
-# sehingga tanggal 1-12 hilang karena ambigu. Kalau upload CSV langsung,
-# format sudah ISO dan tidak ada masalah.
-def parse_date_flexible(val):
-    if pd.isna(val) or str(val).strip() == "": return pd.NaT
-    s = str(val).strip()
-
-    # ISO format (dari CSV asli) — paling prioritas, unambiguous
-    for fmt in ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"]:
-        try:
-            dt = datetime.strptime(s[:len(fmt.replace('%Y','0000').replace('%m','00').replace('%d','00').replace('%H','00').replace('%M','00').replace('%S','00'))], fmt)
-            if 2020 <= dt.year <= 2030: return dt
-        except: pass
-
-    # Slash format — auto-detect D/M vs M/D dari karakter pertama
-    # Ini untuk fallback kalau data dari Sheets
-    s10 = s[:10]
-    for fmt in ["%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y", "%m/%d/%y", "%d/%m/%y", "%d-%m-%Y", "%Y/%m/%d"]:
-        try:
-            dt = datetime.strptime(s10, fmt)
-            if 2020 <= dt.year <= 2030: return dt
-        except: pass
-
-    try:
-        dt = pd.to_datetime(val, dayfirst=False)
-        if 2020 <= dt.year <= 2030: return dt
-    except: pass
-    return pd.NaT
-
+# ── DATE PARSING ──────────────────────────────────────────────────────────────
 def parse_date_series(series):
     """
-    Parse a full Series of dates efficiently.
-    Detects format once from sample, then applies vectorized parsing.
-    Handles ISO (CSV asli) and slash formats (Sheets export).
+    Parse date series — prioritize ISO (from raw CSV), fallback to slash formats.
+    Auto-detects D/M vs M/D from data to handle Google Sheets locale conversion.
     """
     raw = series.astype(str).str.strip()
     result = pd.Series([pd.NaT] * len(raw), index=raw.index, dtype="datetime64[ns]")
 
-    # ISO format first — always unambiguous
+    # ISO first — always unambiguous (format from raw CSV source)
     for fmt in ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"]:
         mask = result.isna()
         if not mask.any(): break
         result[mask] = pd.to_datetime(raw[mask], format=fmt, errors="coerce")
 
-    # Slash format — detect D/M vs M/D from sample
+    # Slash format fallback (Google Sheets export)
     remaining = raw[result.isna() & raw.str.match(r"^\d{1,2}/\d{1,2}/\d{4}")]
     if not remaining.empty:
         day_first = False
@@ -221,6 +186,7 @@ def parse_date_series(series):
 
     return result
 
+# ── COMPUTE ───────────────────────────────────────────────────────────────────
 def prepare_df(df):
     df.columns = df.columns.str.strip().str.replace('\ufeff', '', regex=False)
     df["_date"]  = parse_date_series(df["PDIcomp. Date"]).dt.strftime("%Y-%m-%d")
@@ -287,8 +253,8 @@ def calc_stats(df, sel_loc):
 
     models = []
     for m, mdf in df.groupby("Model"):
-        model_loc  = get_loc(m)
-        use_loc = model_loc if sel_loc == "ALL" else sel_loc
+        model_loc = get_loc(m)
+        use_loc   = model_loc if sel_loc == "ALL" else sel_loc
 
         p   = PARAMS[use_loc]["Total"]
         col = FIELDS["Total"]
@@ -299,14 +265,13 @@ def calc_stats(df, sel_loc):
         n2  = int((sts == "NORMAL").sum())
         g2  = int((sts == "NG").sum())
 
-        pv       = pd.to_numeric(mdf.get(FIELDS["PPO"],      pd.Series(dtype=float)), errors="coerce").dropna()
-        rv       = pd.to_numeric(mdf.get(FIELDS["Receiving"],pd.Series(dtype=float)), errors="coerce").dropna()
+        pv       = pd.to_numeric(mdf.get(FIELDS["PPO"],       pd.Series(dtype=float)), errors="coerce").dropna()
+        rv       = pd.to_numeric(mdf.get(FIELDS["Receiving"], pd.Series(dtype=float)), errors="coerce").dropna()
         tvv      = tv.dropna()
-        spuin_v  = pd.to_numeric(mdf.get(FIELDS["SPU In"],   pd.Series(dtype=float)), errors="coerce").dropna()
-        spcomp_v = pd.to_numeric(mdf.get(FIELDS["SPU Comp"], pd.Series(dtype=float)), errors="coerce").dropna()
+        spuin_v  = pd.to_numeric(mdf.get(FIELDS["SPU In"],    pd.Series(dtype=float)), errors="coerce").dropna()
+        spcomp_v = pd.to_numeric(mdf.get(FIELDS["SPU Comp"],  pd.Series(dtype=float)), errors="coerce").dropna()
         models.append({
-            "name": m, "n": len(mdf),
-            "loc":      model_loc,
+            "name": m, "n": len(mdf), "loc": model_loc,
             "total":    round(float(tvv.mean()),      3) if not tvv.empty      else None,
             "ppo":      round(float(pv.mean()),       3) if not pv.empty       else None,
             "recv":     round(float(rv.mean()),       3) if not rv.empty       else None,
@@ -325,6 +290,52 @@ def calc_stats(df, sel_loc):
         "processes":    result,
         "models":       models,
     }
+
+# ── FIFO CALCULATION ──────────────────────────────────────────────────────────
+def calc_fifo(df_input, ppoin_col, tolerance_min=3600):
+    """
+    FIFO compliance check — port dari DAX FIFO_Model_%.
+
+    Logic:
+    Unit i = Non-FIFO jika ada unit j dengan MODEL SAMA dan HARI SAMA dimana:
+      - pdi_j < pdi_i  (j masuk PDI lebih awal)
+      - ppo_j > ppo_i + tolerance  (j keluar PPO lebih lambat)
+    Artinya i menyalip antrian j.
+
+    Scope per hari (bukan per bulan) — unit beda hari tidak saling dibandingkan
+    karena setiap hari adalah sesi operasional terpisah.
+    """
+    tol = pd.Timedelta(minutes=tolerance_min)
+
+    fifo_df = df_input[["Model", "_date", "PDIcomp. Date", ppoin_col]].copy()
+    fifo_df["_pdi"] = parse_date_series(fifo_df["PDIcomp. Date"])
+    fifo_df["_ppo"] = parse_date_series(fifo_df[ppoin_col])
+    fifo_df = fifo_df.dropna(subset=["_pdi", "_ppo"])
+
+    if fifo_df.empty:
+        return None
+
+    non_fifo_flags = []
+    # Group by model + date — FIFO hanya dibandingkan dalam hari & model yang sama
+    for (model, date), grp in fifo_df.groupby(["Model", "_date"]):
+        for _, cur in grp.iterrows():
+            violators = grp[
+                (grp["_pdi"] <  cur["_pdi"]) &
+                (grp["_ppo"] >  cur["_ppo"] + tol)
+            ]
+            non_fifo_flags.append({
+                "idx":       cur.name,
+                "non_fifo":  len(violators) > 0,
+                "model":     model,
+                "date":      date,
+            })
+
+    flags_df = pd.DataFrame(non_fifo_flags).set_index("idx")
+    fifo_df["_non_fifo"] = flags_df["non_fifo"]
+    fifo_df["_model"]    = flags_df["model"]
+    fifo_df["_day"]      = flags_df["date"]
+
+    return fifo_df
 
 # ── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown("""
@@ -366,21 +377,18 @@ st.markdown("""
 
 # ── SIDEBAR ───────────────────────────────────────────────────────────────────
 with st.sidebar:
-    # [PATCH 2] Tambah upload CSV — solusi permanen untuk masalah format tanggal Sheets
     st.markdown("### 📂 Upload Data CSV")
     uploaded_csv = st.file_uploader(
         "Upload CSV langsung (recommended)",
         type=["csv"],
-        help="Format ISO dari file asli terbaca sempurna. Hindari konversi tanggal oleh Sheets."
+        help="Format ISO dari file asli terbaca sempurna. Hindari konversi tanggal oleh Google Sheets."
     )
-    st.markdown("### 🔄 Data Source")
-    st.caption("Data otomatis diambil dari Google Sheets")
+    st.markdown("### 🔄 Google Sheets")
+    st.caption("Fallback otomatis jika tidak ada CSV")
     st.caption("Auto-refresh setiap 60 detik")
-
     if st.button("🔄 Refresh Data", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
-
     st.markdown("---")
     st.caption("NLO1 Dept · Lead Time Dashboard · 2026")
     if st.button("🚪 Logout", use_container_width=True):
@@ -388,7 +396,6 @@ with st.sidebar:
         st.rerun()
 
 # ── LOAD DATA ─────────────────────────────────────────────────────────────────
-# [PATCH 3] Prioritaskan CSV upload, fallback ke Sheets
 if uploaded_csv is not None:
     try:
         import io
@@ -402,12 +409,12 @@ else:
     df_raw, err = load_from_sheets()
 
 if err:
-    st.error(f"❌ Gagal load data dari Google Sheets: {err}")
-    st.info("Pastikan Google Sheets sudah di-setup dengan benar.")
+    st.error(f"❌ Gagal load data: {err}")
+    st.info("Upload CSV atau pastikan Google Sheets sudah di-setup dengan benar.")
     st.stop()
 
 if df_raw is None or df_raw.empty:
-    st.warning("⚠️ Google Sheets kosong. Silakan isi data terlebih dahulu.")
+    st.warning("⚠️ Data kosong. Upload CSV atau pastikan Google Sheets sudah terisi.")
     st.stop()
 
 df = prepare_df(df_raw)
@@ -425,10 +432,10 @@ with col_loc:
                        horizontal=True, label_visibility="collapsed")
 
 with col_mon:
-    months      = sorted(df["_month"].dropna().unique().tolist())
+    months       = sorted(df["_month"].dropna().unique().tolist())
     month_labels = {m: datetime.strptime(m, "%Y-%m").strftime("%b '%y") for m in months}
-    sel_month   = st.radio("Bulan", months, format_func=lambda x: month_labels[x],
-                           index=len(months)-1, horizontal=True, label_visibility="collapsed")
+    sel_month    = st.radio("Bulan", months, format_func=lambda x: month_labels[x],
+                            index=len(months)-1, horizontal=True, label_visibility="collapsed")
 
 with col_day:
     dates_in_month = sorted(df[df["_month"] == sel_month]["_date"].dropna().unique().tolist())
@@ -558,7 +565,7 @@ for i, (pname, color) in enumerate(PROC_COLORS.items()):
 left_col, right_col = st.columns([3, 2])
 
 with left_col:
-    # Model Table
+    # ── Model Table ──────────────────────────────────────────────────────────
     st.markdown('<div class="section-title">🚗 Model Summary</div>', unsafe_allow_html=True)
     if stats["models"]:
         mdf = pd.DataFrame(stats["models"])
@@ -574,7 +581,7 @@ with left_col:
                 columns={"name":"Model","n":"Units"}),
             use_container_width=True, hide_index=True)
 
-    # Daily Table
+    # ── Daily Table ──────────────────────────────────────────────────────────
     if sel_date == "ALL":
         st.markdown('<div class="section-title">📅 Daily Achievement</div>', unsafe_allow_html=True)
         daily_rows = []
@@ -583,7 +590,7 @@ with left_col:
             if d_df.empty: continue
             ds = calc_stats(d_df, sel_loc)
             if not ds: continue
-            t = ds["processes"].get("Total")
+            t  = ds["processes"].get("Total")
             dt = datetime.strptime(d, "%Y-%m-%d")
             days_id = ["Min","Sen","Sel","Rab","Kam","Jum","Sab"]
             daily_rows.append({
@@ -596,9 +603,10 @@ with left_col:
         if daily_rows:
             st.dataframe(pd.DataFrame(daily_rows), use_container_width=True, hide_index=True)
 
-    # [PATCH 4] FIFO Compliance Section
+    # ── FIFO Compliance ──────────────────────────────────────────────────────
     st.markdown('<div class="section-title">🔄 FIFO Compliance — PDIcomp. (In) vs PPOin (Out)</div>', unsafe_allow_html=True)
 
+    # Detect PPOin Date column
     ppoin_col = None
     for candidate in ["PPOin Date", "PPOin. Date", "PPO in Date", "PPOIn Date"]:
         if candidate in df_filt.columns:
@@ -608,50 +616,30 @@ with left_col:
     if ppoin_col is None:
         st.caption("⚠️ Kolom 'PPOin Date' tidak ditemukan di data.")
     else:
-        def parse_dt_full(series):
-            raw = series.astype(str).str.strip()
-            result = pd.Series([pd.NaT] * len(raw), index=raw.index, dtype="datetime64[ns]")
-            for fmt in ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d",
-                        "%d/%m/%Y %H:%M", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y",
-                        "%m/%d/%Y %H:%M", "%m/%d/%Y %H:%M:%S", "%m/%d/%Y"]:
-                mask = result.isna()
-                if not mask.any(): break
-                result[mask] = pd.to_datetime(raw[mask], format=fmt, errors="coerce")
-            return result
+        # Tolerance slider
+        fifo_tol = st.slider(
+            "Toleransi FIFO (menit)",
+            min_value=0, max_value=60, value=15, step=5,
+            help="Selisih minimum PPO keluar agar dianggap pelanggaran FIFO. Default 15 menit (sama dengan DAX)."
+        )
 
-        fifo_df = df_filt[["Model", "PDIcomp. Date", ppoin_col]].copy()
-        fifo_df["_pdi"] = parse_dt_full(fifo_df["PDIcomp. Date"])
-        fifo_df["_ppo"] = parse_dt_full(fifo_df[ppoin_col])
-        fifo_df = fifo_df.dropna(subset=["_pdi", "_ppo"])
+        with st.spinner("Menghitung FIFO compliance..."):
+            fifo_df = calc_fifo(df_filt, ppoin_col, tolerance_min=fifo_tol)
 
-        if fifo_df.empty:
+        if fifo_df is None or fifo_df.empty:
             st.caption("⚠️ Tidak ada data FIFO valid untuk filter ini.")
         else:
-            # FIFO logic — port dari DAX:
-            # Unit i = NonFIFO jika ada unit j (model sama) dengan
-            # pdi_j < pdi_i (j masuk lebih awal) AND ppo_j > ppo_i + 15min (j keluar lebih lambat)
-            # => unit i menyalip antrian unit j
-            tol = pd.Timedelta(minutes=2600)
-            non_fifo_flags = []
-            with st.spinner("Menghitung FIFO compliance..."):
-                for _, cur in fifo_df.iterrows():
-                    violators = fifo_df[
-                        (fifo_df["Model"]  == cur["Model"]) &
-                        (fifo_df["_pdi"]   <  cur["_pdi"]) &
-                        (fifo_df["_ppo"]   >  cur["_ppo"] + tol)
-                    ]
-                    non_fifo_flags.append(len(violators) > 0)
-            fifo_df["_non_fifo"] = non_fifo_flags
-
-            # Per-model summary
+            # ── Per-model summary ────────────────────────────────────────────
             fifo_by_model = []
-            for model, grp in fifo_df.groupby("Model"):
+            for model, grp in fifo_df.groupby("_model"):
                 total = len(grp)
                 nf    = int(grp["_non_fifo"].sum())
                 ok    = total - nf
                 pct   = round(ok / total * 100, 1) if total else 0
-                fifo_by_model.append({"Model": model, "Total": total,
-                                      "FIFO_OK": ok, "NonFIFO": nf, "FIFO_Pct": pct})
+                fifo_by_model.append({
+                    "Model": model, "Total": total,
+                    "FIFO_OK": ok, "NonFIFO": nf, "FIFO_Pct": pct
+                })
             fifo_by_model = sorted(fifo_by_model, key=lambda x: x["FIFO_Pct"])
 
             # Bar chart
@@ -693,6 +681,7 @@ with left_col:
 
             st.markdown("</div>", unsafe_allow_html=True)
 
+            # Overall KPIs
             total_all = len(fifo_df)
             nf_all    = int(fifo_df["_non_fifo"].sum())
             ok_all    = total_all - nf_all
@@ -713,18 +702,19 @@ with left_col:
                   <div class='kpi-n' style='font-size:1.4rem;color:#00e5a0'>{ok_all}</div>
                   <div class='kpi-l'>Units FIFO OK</div></div>""", unsafe_allow_html=True)
 
-            st.caption("🟢 ≥95% · 🟡 85–95% · 🔴 <85% | Non-FIFO = Advance / Delay unit")
+            scope_note = "per hari" if sel_date == "ALL" else f"tanggal {sel_date}"
+            st.caption(f"🟢 ≥95% · 🟡 85–95% · 🔴 <85% | Toleransi {fifo_tol} menit · Scope: {scope_note} · Non-FIFO = unit keluar PPO lebih dulu padahal masuk PDI belakangan")
 
 with right_col:
-    # Key Findings & Action Points
+    # ── Key Findings & Action Points ─────────────────────────────────────────
     st.markdown('<div class="section-title">💡 Key Findings & Action Points</div>', unsafe_allow_html=True)
     st.caption(f"Auto-generated · {sel_loc} · {date_label}")
 
-    findings  = []
-    total_p   = stats["processes"].get("Total")
-    recv_p    = stats["processes"].get("Receiving")
-    ppo_p     = stats["processes"].get("PPO")
-    spuin_p   = stats["processes"].get("SPU In")
+    findings = []
+    total_p  = stats["processes"].get("Total")
+    recv_p   = stats["processes"].get("Receiving")
+    ppo_p    = stats["processes"].get("PPO")
+    spuin_p  = stats["processes"].get("SPU In")
 
     # 1) Overall achievement
     if total_p and total_p["achieved"] is not None:
@@ -825,7 +815,6 @@ with right_col:
             f"border-radius:4px;font-size:.58rem;color:#ffcc40;line-height:1.5'>"
             f"→ <b>Action:</b> {f['action']}</div>"
         ) if f.get("action") else ""
-
         card_html = (
             f"<div class='finding-card' style='border-left:3px solid {f['color']}'>"
             f"<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:4px'>"
@@ -839,7 +828,7 @@ with right_col:
         )
         st.markdown(card_html, unsafe_allow_html=True)
 
-# ── MAIN LAYOUT: DASHBOARD (kiri) + CHATBOT (kanan) ─────────────────────────
+# ── CHATBOT ───────────────────────────────────────────────────────────────────
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
@@ -884,18 +873,15 @@ def ask_ai(prompt, stats, sel_loc, sel_month, sel_date, df_filt):
                 timeout=40,
             )
             if resp.status_code == 429:
-                wait = (attempt + 1) * 5
-                time.sleep(wait)
+                time.sleep((attempt + 1) * 5)
                 continue
             resp.raise_for_status()
             return resp.json()["result"]["response"]
         except Exception as e:
-            if attempt == 2:
-                raise e
+            if attempt == 2: raise e
             time.sleep(5)
     return "❌ Gagal setelah 3 percobaan. Coba lagi beberapa saat."
 
-# ── CHATBOT PANEL (fixed right) ──────────────────────────────────────────────
 chat_msgs_html = ""
 for msg in st.session_state.chat_history:
     is_user = msg["role"] == "user"
@@ -918,7 +904,6 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ── CHAT INPUT ────────────────────────────────────────────────────────────────
 st.markdown("---")
 c_in, c_btn, c_clr = st.columns([6, 1, 1])
 with c_in:
