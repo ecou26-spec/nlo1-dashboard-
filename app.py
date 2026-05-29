@@ -292,7 +292,7 @@ def calc_stats(df, sel_loc):
     }
 
 # ── FIFO CALCULATION ──────────────────────────────────────────────────────────
-def calc_fifo(df_input, ppoin_col, tolerance_min=3600):
+def calc_fifo(df_input, ppoin_col, tolerance_min=3660):
     """
     FIFO compliance check — port dari DAX FIFO_Model_%.
 
@@ -616,12 +616,8 @@ with left_col:
     if ppoin_col is None:
         st.caption("⚠️ Kolom 'PPOin Date' tidak ditemukan di data.")
     else:
-        # Tolerance slider
-        fifo_tol = st.slider(
-            "Toleransi FIFO (menit)",
-            min_value=0, max_value=60, value=15, step=5,
-            help="Selisih minimum PPO keluar agar dianggap pelanggaran FIFO. Default 15 menit (sama dengan DAX)."
-        )
+        fifo_tol = 15  # hardcode 15 menit
+
 
         with st.spinner("Menghitung FIFO compliance..."):
             fifo_df = calc_fifo(df_filt, ppoin_col, tolerance_min=fifo_tol)
