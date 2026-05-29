@@ -292,7 +292,7 @@ def calc_stats(df, sel_loc):
     }
 
 # ── FIFO CALCULATION ──────────────────────────────────────────────────────────
-def calc_fifo(df_input, ppoin_col, tolerance_min=3660):
+def calc_fifo(df_input, ppoin_col, tolerance_min=240):
     """
     FIFO compliance check — port dari DAX FIFO_Model_%.
 
@@ -616,7 +616,7 @@ with left_col:
     if ppoin_col is None:
         st.caption("⚠️ Kolom 'PPOin Date' tidak ditemukan di data.")
     else:
-        fifo_tol = 15  # hardcode 15 menit
+        fifo_tol = 240  # hardcode 240 menit
 
 
         with st.spinner("Menghitung FIFO compliance..."):
@@ -699,7 +699,7 @@ with left_col:
                   <div class='kpi-l'>Units FIFO OK</div></div>""", unsafe_allow_html=True)
 
             scope_note = "per hari" if sel_date == "ALL" else f"tanggal {sel_date}"
-            st.caption(f"🟢 ≥95% · 🟡 85–95% · 🔴 <85% | Toleransi {fifo_tol} menit · Scope: {scope_note} · Non-FIFO = unit keluar PPO lebih dulu padahal masuk PDI belakangan")
+            st.caption(f"🟢 ≥95% · 🟡 85–95% · 🔴 <85% | Non-FIFO = Advance / Delay Unit")
 
 with right_col:
     # ── Key Findings & Action Points ─────────────────────────────────────────
