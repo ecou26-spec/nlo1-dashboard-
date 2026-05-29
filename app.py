@@ -616,7 +616,7 @@ with left_col:
     if ppoin_col is None:
         st.caption("⚠️ Kolom 'PPOin Date' tidak ditemukan di data.")
     else:
-        fifo_tol = 600  # hardcode 600 menit
+        fifo_tol = 1440  # hardcode 1440 menit
 
 
         with st.spinner("Menghitung FIFO compliance..."):
