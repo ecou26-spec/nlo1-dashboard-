@@ -631,7 +631,7 @@ with left_col:
             # Unit i = NonFIFO jika ada unit j (model sama) dengan
             # pdi_j < pdi_i (j masuk lebih awal) AND ppo_j > ppo_i + 15min (j keluar lebih lambat)
             # => unit i menyalip antrian unit j
-            tol = pd.Timedelta(minutes=15)
+            tol = pd.Timedelta(minutes=360)
             non_fifo_flags = []
             with st.spinner("Menghitung FIFO compliance..."):
                 for _, cur in fifo_df.iterrows():
@@ -713,7 +713,7 @@ with left_col:
                   <div class='kpi-n' style='font-size:1.4rem;color:#00e5a0'>{ok_all}</div>
                   <div class='kpi-l'>Units FIFO OK</div></div>""", unsafe_allow_html=True)
 
-            st.caption("🟢 ≥95% · 🟡 85–95% · 🔴 <85% | Toleransi 15 menit · Non-FIFO = unit keluar PPO lebih dulu padahal masuk PDI belakangan")
+            st.caption("🟢 ≥95% · 🟡 85–95% · 🔴 <85% | Non-FIFO = Advance / Delay unit")
 
 with right_col:
     # Key Findings & Action Points
