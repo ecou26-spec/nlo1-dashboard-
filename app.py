@@ -61,10 +61,10 @@ PARAMS = {
         "Total":     {"avg": 6.46,  "std": 1.67},
     },
     "NVDC Cibitung": {
-        "Receiving": {"avg": 1.174, "std": 0.29},
-        "PPO":       {"avg": 1.934, "std": 0.53},
+        "Receiving": {"avg": 1.574, "std": 0.39},
+        "PPO":       {"avg": 2.534, "std": 0.63},
         "SPU In":    {"avg": 1.571, "std": 0.40},
-        "SPU Comp":  {"avg": 0.934, "std": 0.23},
+        "SPU Comp":  {"avg": 1.234, "std": 0.31},
         "Total":     {"avg": 6.079, "std": 1.52},
     },
     "NVDC Sunter": {
